@@ -1,0 +1,40 @@
+# Maven
+target/
+.mvn/wrapper/maven-wrapper.jar
+
+# IntelliJ
+.idea/
+*.iml
+*.iws
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Spring Boot
+*.pid
+*.seed
+*.pid.lock
+
+# Environment variables
+.env
+
+# Application local configs
+application-local.yml
+application-dev.yml
+application-prod.yml
+
+# VS Code
+.vscode/
+
+# Build
+build/
+
+# Test output
+surefire-reports/
+
+# Node (if later frontend)
+node_modules/
