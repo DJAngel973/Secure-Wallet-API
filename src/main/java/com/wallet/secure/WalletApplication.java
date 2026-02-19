@@ -1,4 +1,4 @@
-package com.academic.wallet;
+package com.wallet.secure;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
