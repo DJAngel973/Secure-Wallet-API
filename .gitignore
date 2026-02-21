@@ -1,14 +1,25 @@
 # Maven
 target/
 .mvn/wrapper/maven-wrapper.jar
+!.mvn/wrapper/maven-wrapper.properties
 
 # IntelliJ
 .idea/
 *.iml
 *.iws
+*.ipr
+out/
+
+# Eclipse
+.classpath
+.project
+.settings/
+bin/
 
 # Logs
 *.log
+logs/
+spring.log
 
 # OS files
 .DS_Store
@@ -19,22 +30,82 @@ Thumbs.db
 *.seed
 *.pid.lock
 
-# Environment variables
+# SECURITY
 .env
+.env.local
+.env.*.local
+*.key
+*.pem
+*.p12
+*.jks
+*.keystore
+*.truststore
+secrets/
+credentials/
 
-# Application local configs
+# Application configs
 application-local.yml
+application-local.properties
 application-dev.yml
+application-dev.properties
 application-prod.yml
+application-prod.properties
+application-secret.yml
+application-secret.properties
+
+# Database
+*.db
+*.sqlite
+*.sql.backup
+db-data/
+postgres-data/
+
+# Docker
+.docker/
+docker-compose.override.yml
+*.env.docker
 
 # VS Code
 .vscode/
+*.code-workspace
 
 # Build
 build/
+dist/
+*.jar
+*.war
+*.ear
 
 # Test output
 surefire-reports/
+test-output/
+coverage/
+.pytest_cache/
 
-# Node (if later frontend)
+# Temporary files
+*.tmp
+*.swp
+*.swo
+*~
+
+# Node
 node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Compiled class file
+*.class
+
+# Package Files
+*.jar
+*.war
+*.nar
+*.ear
+*.zip
+*.tar.gz
+*.rar
+
+# Virtual environments (if using Python for scripts)
+venv/
+.venv/
