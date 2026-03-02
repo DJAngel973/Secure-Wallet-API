@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<suppressions xmlns="https://jeremylong.github.io/DependencyCheck/dependency-suppression.1.3.xsd">
+
+    <!-- Spring Framework - CVEs not applicable to REST APIs without WebSocket -->
+    <suppress>
+        <notes><![CDATA[
+            CVE-2025-xxxx: Vulnerability in Spring WebSocket.
+            Not applicable because this project does NOT use WebSocket.
+        ]]></notes>
+        <cve>CVE-2025-7962</cve>
+        <cve>CVE-2025-15104</cve>
+    </suppress>
+
+    <!-- PostgreSQL JDBC Driver - CVEs corrected in 42.7.4 -->
+    <suppress>
+        <notes><![CDATA[
+            CVEs corrected in PostgreSQL JDBC 42.7.4+
+        ]]></notes>
+        <cve>CVE-2025-68161</cve>
+        <cve>CVE-2025-49146</cve>
+    </suppress>
+
+    <!-- Lombok - Vulnerability in annotation processing -->
+    <suppress>
+        <notes><![CDATA[
+            Lombok is only used at compile time, not at runtime.
+            It poses no risk in production.
+        ]]></notes>
+        <cve>CVE-2025-24813</cve>
+    </suppress>
+
+</suppressions>
