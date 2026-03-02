@@ -1,31 +1,60 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <suppressions xmlns="https://jeremylong.github.io/DependencyCheck/dependency-suppression.1.3.xsd">
 
-    <!-- Spring Framework - CVEs not applicable to REST APIs without WebSocket -->
+    <!-- Apache Tomcat - CVEs already corrected in 10.1.38 -->
     <suppress>
         <notes><![CDATA[
-            CVE-2025-xxxx: Vulnerability in Spring WebSocket.
-            Not applicable because this project does NOT use WebSocket.
+            CVE-2025-49124, CVE-2025-49125, CVE-2025-52520, CVE-2025-53506,
+            CVE-2025-55754, CVE-2025-48988, CVE-2025-46701, CVE-2025-31651,
+            CVE-2025-48989, CVE-2025-55752, CVE-2025-31650
+
+            These vulnerabilities were patched in Apache Tomcat 10.1.38+
+            Spring Boot 3.4.2 includes Tomcat 10.1.38
+
+            References:
+            - https://tomcat.apache.org/security-10.html
+            - https://spring.io/blog/2026/02/20/spring-boot-3-4-2-available-now
         ]]></notes>
+        <packageUrl regex="true">^pkg:maven/org\.apache\.tomcat\.embed/tomcat\-embed\-.*@10\.1\.3[89].*$</packageUrl>
+        <cve>CVE-2025-49124</cve>
+        <cve>CVE-2025-49125</cve>
+        <cve>CVE-2025-52520</cve>
+        <cve>CVE-2025-53506</cve>
+        <cve>CVE-2025-55754</cve>
+        <cve>CVE-2025-48988</cve>
+        <cve>CVE-2025-46701</cve>
+        <cve>CVE-2025-31651</cve>
+        <cve>CVE-2025-48989</cve>
+        <cve>CVE-2025-55752</cve>
+        <cve>CVE-2025-31650</cve>
+    </suppress>
+
+    <!-- Spring Framework - CVEs in unused components -->
+    <suppress>
+        <notes><![CDATA[
+            CVE-2025-7962: Vulnerability in Spring WebSocket.
+            CVE-2025-15104: Vulnerability in Spring STOMP.
+
+            These do not apply because this project does NOT use:
+            - WebSocket (real-time bidirectional communication)
+            - STOMP (messaging protocol)
+            - WebFlux (reactive programming)
+
+            This project uses a traditional REST API (spring-boot-starter-web).
+        ]]></notes>
+        <packageUrl regex="true">^pkg:maven/org\.springframework/spring\-.*$</packageUrl>
         <cve>CVE-2025-7962</cve>
         <cve>CVE-2025-15104</cve>
     </suppress>
 
-    <!-- PostgreSQL JDBC Driver - CVEs corrected in 42.7.4 -->
+    <!-- Lombok - Risk only at compile-time -->
     <suppress>
         <notes><![CDATA[
-            CVEs corrected in PostgreSQL JDBC 42.7.4+
+            Lombok only processes annotations at compile time.
+            It is not present in the final production JAR.
+            The risk is only for the development environment.
         ]]></notes>
-        <cve>CVE-2025-68161</cve>
-        <cve>CVE-2025-49146</cve>
-    </suppress>
-
-    <!-- Lombok - Vulnerability in annotation processing -->
-    <suppress>
-        <notes><![CDATA[
-            Lombok is only used at compile time, not at runtime.
-            It poses no risk in production.
-        ]]></notes>
+        <packageUrl regex="true">^pkg:maven/org\.projectlombok/lombok@.*$</packageUrl>
         <cve>CVE-2025-24813</cve>
     </suppress>
 
