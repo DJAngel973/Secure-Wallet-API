@@ -1,0 +1,36 @@
+spring:
+  # H2 DATABASE (in memory)
+  datasource:
+    url: jdbc:h2:mem:testdb;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+
+  jpa:
+    database-platform: org.hibernate.dialect.H2Dialect
+    hibernate:
+      ddl-auto: create-drop  # Create/drop schema on each test
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+
+  h2:
+    console:
+      enabled: false  # Disable console in tests
+
+# JWT (mock for tests)
+jwt:
+  secret: test-secret-key-minimum-256-bits-for-hs512-algorithm-secure-wallet-api-testing-environment-only
+  expiration: 3600000  # 1 hour
+
+# Minimal logging in tests
+logging:
+  level:
+    root: WARN
+    com.wallet.secure: DEBUG
+
+# No Actuator in tests
+management:
+  endpoints:
+    enabled-by-default: false

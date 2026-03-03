@@ -1,0 +1,132 @@
+spring:
+  application:
+    name: Secure Wallet API
+
+  # DATASOURCE - PostgreSQL
+  datasource:
+    url: jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5432}/${POSTGRES_DB:db_wallet_p}
+    username: ${POSTGRES_USER}
+    password: ${POSTGRES_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+    
+    # HikariCP - Connection Pool (OWASP: prevents connection exhaustion)
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 5
+      connection-timeout: 30000  # 30 seconds
+      idle-timeout: 600000       # 10 minutes
+      max-lifetime: 1800000      # 30 minutes
+      leak-detection-threshold: 60000  # Detect unclosed connections
+
+  # JPA / HIBERNATE
+  jpa:
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    show-sql: false  # ⚠️ NEVER true in production (exposes data)
+    hibernate:
+      ddl-auto: validate  # IMPORTANT: validate (not create/update)
+      # The DB is created with SQL scripts in Docker
+    properties:
+      hibernate:
+        format_sql: false
+        jdbc:
+          batch_size: 20
+        order_inserts: true
+        order_updates: true
+        # OWASP: Usar prepared statements (default en Hibernate)
+        use_sql_comments: false
+
+# SERVER - Apache Tomcat
+server:
+  port: ${SERVER_PORT:8080}
+  
+  # OWASP A05:2021 - Security Misconfiguration
+  error:
+    include-message: never        # Do NOT display error messages
+    include-stacktrace: never     # Do NOT expose stack traces
+    include-exception: false      # Do NOT expose exception names
+    include-binding-errors: never # Do NOT expose validation errors
+  
+  # OWASP A07:2021 - Identification and Authentication Failures
+  servlet:
+    session:
+      timeout: 30m                # Session expires in 30 minutes
+      cookie:
+        http-only: true           # Prevents XSS
+        secure: false             # ⚠️ True in production (HTTPS)
+        same-site: strict         # Prevents CSRF
+  
+  # Tomcat Configuration (CVE mitigation)
+  tomcat:
+    max-http-header-size: 8KB     # Limit headers (prevents DoS)
+    max-swallow-size: 2MB         # Limit request body
+    connection-timeout: 5000      # 5 seconds
+    threads:
+      max: 200                    # Maximum number of threads
+      min-spare: 10               # Minimum number of threads waiting
+    remoteip:
+      protocol-header: X-Forwarded-Proto
+      remote-ip-header: X-Forwarded-For
+
+# JWT - Autenticación
+jwt:
+  secret: ${JWT_SECRET}
+  expiration: ${JWT_EXPIRATION:86400000}  # 24 hours (ms)
+  issuer: secure-wallet-api
+  header: Authorization
+  prefix: Bearer
+
+# LOGGING
+logging:
+  level:
+    root: INFO
+    com.wallet.secure: DEBUG
+    org.springframework.security: INFO
+    org.hibernate.SQL: DEBUG  # View SQL queries
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE  # View parameters
+  
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+  
+  file:
+    name: logs/secure-wallet-api.log
+    max-size: 10MB
+    max-history: 30  # Keep logs for 30 days
+
+# ACTUATOR - Monitoring (OWASP: Security Logging)
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics  # Only necessary endpoints
+      base-path: /actuator
+  
+  endpoint:
+    health:
+      show-details: when-authorized  # For authenticated users only
+  
+  info:
+    env:
+      enabled: true
+
+# CUSTOM SETTINGS (your properties)
+app:
+  name: Secure Wallet API
+  version: 0.0.1-SNAPSHOT
+  description: Digital wallet with OWASP security best practices
+  
+  # Business limits
+  transaction:
+    max-amount: 10000.00          # Maximum amount per transaction
+    daily-limit: 50000.00         # Daily limit per user
+    require-2fa-amount: 5000.00   # Requires 2FA for larger amounts
+  
+  # Security settings
+  security:
+    max-login-attempts: 5         # Login attempts before lockout
+    lockout-duration-minutes: 30  # Lockout time
+    password-min-length: 8
+    password-require-uppercase: true
+    password-require-lowercase: true
+    password-require-digit: true
+    password-require-special: true
