@@ -2,6 +2,7 @@
 target/
 .mvn/wrapper/maven-wrapper.jar
 !.mvn/wrapper/maven-wrapper.properties
+dependency-check-report.html
 
 # IntelliJ
 .idea/
@@ -20,6 +21,7 @@ bin/
 *.log
 logs/
 spring.log
+*.gz
 
 # OS files
 .DS_Store
@@ -34,10 +36,13 @@ Thumbs.db
 .env
 .env.local
 .env.*.local
+.env.production
+*.env
 *.key
 *.pem
 *.p12
 *.jks
+*.crt
 *.keystore
 *.truststore
 secrets/
@@ -59,6 +64,7 @@ application-secret.properties
 *.sql.backup
 db-data/
 postgres-data/
+/media/Documentos
 
 # Docker
 .docker/
@@ -98,10 +104,7 @@ yarn-error.log*
 *.class
 
 # Package Files
-*.jar
-*.war
 *.nar
-*.ear
 *.zip
 *.tar.gz
 *.rar
