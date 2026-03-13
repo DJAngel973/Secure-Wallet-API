@@ -1,0 +1,132 @@
+name: CI — Build, Test & Security Scan
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+# Cancel previous runs from the same PR/branch to save minutes
+# Cancelar runs anteriores del mismo PR/branch para ahorrar minutos
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ═══════════════════════════════════════════════════════════
+  # JOB 1: Build & Test
+  # ═══════════════════════════════════════════════════════════
+  build-and-test:
+    name: Build & Test (Java 17)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure Java 17 (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: 'maven'         # Automatically caches ~/.m2 - Cachea ~/.m2 automáticamente
+
+      - name: Compile project
+        run: ./mvnw clean compile --no-transfer-progress
+
+      - name: Run tests
+        run: ./mvnw test --no-transfer-progress
+        env:
+          # The test use H2 (application-test.yml), they do not need PostgreSQL
+          # Los tests usan H2 (application-test.yml), no necesitan PostgreSQL
+          SPRING_PROFILES_ACTIVE: test
+
+      - name: Publish test results
+        uses: actions/upload-artifact@v4
+        if: always()   # Upload even if the test fail - Subir aunque fallen los tests
+        with:
+          name: test-results-${{ github.run_id }}
+          path: target/surefire-reports/
+          retention-days: 7
+
+  # ═══════════════════════════════════════════════════════════
+  # JOB 2: OWASP Dependency Check
+  # Runs on all push/PR to main, also required as a status check
+  # Corre en todo push/PR a main, También requerido como status check
+  # ═══════════════════════════════════════════════════════════
+  owasp-check:
+    name: OWASP Dependency Check
+    runs-on: ubuntu-latest
+    needs: build-and-test # Only if I compile and test OK - Solo si compilo y tests OK
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure Java 17 (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: 'maven'
+
+      # Cache the local NVD database to avoid downloading it every time
+      # Cachear la base de datos NVD local para no descargarla cada vez
+      - name: OWASP NVD database cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository/org/owasp/dependency-check-data
+          key: owasp-nvd-${{ runner.os }}-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            owasp-nvd-${{ runner.os }}-
+
+      - name: Run OWASP Dependency Check
+        run: |
+          ./mvnw dependency-check:check \
+            --no-transfer-progress \
+            -DnvdApiKey=${{ secrets.NVD_APIKEY }} \
+            -DfailBuildOnCVSS=7 \
+            -DsuppressionFile=owasp-suppressions.xml
+        continue-on-error: false  # The job fails if there is a CVE >= 7 - Falla el job si hay CVE ≥ 7.0
+
+      - name: Publish OWASP report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: owasp-report-${{ github.run_id }}
+          path: |
+            target/dependency-check-report.html
+            target/dependency-check-report.json
+          retention-days: 30
+
+  # ═══════════════════════════════════════════════════════════
+  # JOB 3: Package JAR
+  # Only when it reaches main (post-merge)
+  # Solo cuando llega a main (post-merge)
+  # ═══════════════════════════════════════════════════════════
+  package:
+    name: Package JAR
+    runs-on: ubuntu-latest
+    needs: [ build-and-test, owasp-check ]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure Java 17 (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: 'maven'
+
+      - name: Generate JAR
+        run: ./mvnw package -DskipTests --no-transfer-progress
+
+      - name: Upload JAR as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: secure-wallet-api-${{ github.sha }}
+          path: target/*.jar
+          retention-days: 14
