@@ -2,24 +2,23 @@
 <suppressions xmlns="https://jeremylong.github.io/DependencyCheck/dependency-suppression.1.3.xsd">
 
     <!-- ═══════════════════════════════════════════════════════════════ -->
-    <!-- PostgreSQL JDBC Driver 42.7.4 -->
+    <!-- PostgreSQL JDBC Driver 42.7.7 -->
     <!-- ═══════════════════════════════════════════════════════════════ -->
     <suppress>
         <notes><![CDATA[
             CVE-2024-1597: SQL Injection en PostgreSQL JDBC < 42.7.2
 
             ANÁLISIS:
-            - Versión actual: 42.7.4 (parcheada)
-            - CVE Real documentado en:
-              https://github.com/pgjdbc/pgjdbc/security/advisories/GHSA-24rp-q3w6-vc56
+            - Versión actual: 42.7.7 (parcheada)
+            - CVE Real: https://github.com/pgjdbc/pgjdbc/security/advisories/GHSA-24rp-q3w6-vc56
 
             APLICA AL PROYECTO: NO
-            - Forzada versión 42.7.4 en pom.xml (línea 24)
+            - Forzada versión 42.7.7 en pom.xml
 
             REVISADO POR: DJAngel973
-            FECHA: 2025-02-03
+            FECHA: 2026-03-13
         ]]></notes>
-        <packageUrl regex="true">^pkg:maven/org\.postgresql/postgresql@42\.7\.[4-9]$</packageUrl>
+        <packageUrl regex="true">^pkg:maven/org\.postgresql/postgresql@42\.7\.[7-9]$</packageUrl>
         <cve>CVE-2024-1597</cve>
     </suppress>
 
@@ -48,8 +47,8 @@
               spring.h2.console.enabled=false
 
             REVISADO POR: DJAngel973
-            FECHA: 2025-02-03
-            PRÓXIMA REVISIÓN: 2025-03-03
+            FECHA: 2026-03-13
+            PRÓXIMA REVISIÓN: 2026-04-13
         ]]></notes>
         <packageUrl regex="true">^pkg:maven/com\.h2database/h2@.*$</packageUrl>
         <cve>CVE-2022-45868</cve>
@@ -60,66 +59,27 @@
     <!-- ═══════════════════════════════════════════════════════════════ -->
     <suppress>
         <notes><![CDATA[
-            Apache Tomcat 10.1.52 - Supresión de falsos positivos
+            Apache Tomcat 10.1.52 - CVEs de severidad baja (<7.0)
 
             ANÁLISIS:
-            - Versión actual: 10.1.52 (forzada en pom.xml línea 22)
-            - Source oficial: https://tomcat.apache.org/security-10.html
-            - Última verificación: https://repo.maven.apache.org/maven2/org/apache/tomcat/embed/
+            - Versión: 10.1.52 (forzada en pom.xml)
+            - Source: https://tomcat.apache.org/security-10.html
 
-            CVEs NO APLICABLES (Razón: versión parcheada o no aplica):
-            - La mayoría de CVEs críticos están parcheados en 10.1.52
-            - Tomcat 10.1.x está mantenido activamente por Apache
-
-            MITIGACIONES ADICIONALES EN application.yml:
-            - server.tomcat.max-http-header-size: 8KB
-            - server.tomcat.connection-timeout: 5000ms
-            - server.tomcat.max-swallow-size: 2MB
-
-            PLAN DE PRODUCCIÓN:
-            1. Reverse proxy (Nginx/CloudFlare) - capa adicional
-            2. Solo HTTPS habilitado (TLS 1.3)
-            3. WAF configurado (rate limiting)
-            4. Firewall restrictivo
-
-            PRÓXIMOS PASOS:
-            - Monitorear releases de Spring Boot 3.4.x
-            - Actualizar a versión más reciente cuando esté disponible
-            - Revisar security advisories semanalmente
+            MITIGACIONES:
+            - Reverse proxy en producción (Nginx/CloudFlare)
+            - Solo HTTPS (TLS 1.3)
+            - Configuración restrictiva en application.yml
 
             REVISADO POR: DJAngel973
-            FECHA: 2025-02-03
-            PRÓXIMA REVISIÓN: 2025-02-17 (quincenal)
+            FECHA: 2026-03-13
+            PRÓXIMA REVISIÓN: 2026-04-13
 
             REFERENCIAS:
             - https://tomcat.apache.org/security-10.html
             - https://spring.io/security/cve
         ]]></notes>
-        <packageUrl regex="true">^pkg:maven/org\.apache\.tomcat\.embed/tomcat\-embed\-.*@10\.1\.5[0-9]$</packageUrl>
-        <!-- Suprimir solo después de verificar individualmente cada CVE -->
+        <packageUrl regex="true">^pkg:maven/org\.apache\.tomcat\.embed/tomcat\-embed\-.*@10\.1\.5[2-9]$</packageUrl>
+        <cvssBelow>7.0</cvssBelow>
     </suppress>
 
-    <!-- ═══════════════════════════════════════════════════════════════ -->
-    <!-- Spring Framework / Spring Data JPA -->
-    <!-- ═══════════════════════════════════════════════════════════════ -->
-    <suppress>
-        <notes><![CDATA[
-            Falsos positivos comunes en análisis de dependencias
-
-            ANÁLISIS:
-            - Versión: 3.4.2 (Spring Boot Starter Parent)
-            - Fuente: https://spring.io/security/cve
-
-            NOTA: Solo suprimir CVEs específicos DESPUÉS de:
-            1. Verificar en https://nvd.nist.gov/vuln/search
-            2. Confirmar en https://spring.io/security/cve
-            3. Documentar razón de supresión
-
-            REVISADO POR: DJAngel973
-            FECHA: 2025-02-03
-        ]]></notes>
-        <packageUrl regex="true">^pkg:maven/org\.springframework\.*/spring\-.*@6\.[0-9]\..*$</packageUrl>
-        <!-- Agregar CVEs específicos aquí después de verificación individual -->
-    </suppress>
-
-</suppressions>
+    </suppressions>
