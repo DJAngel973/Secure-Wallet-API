@@ -50,9 +50,9 @@ jobs:
           retention-days: 7
 
   # ═══════════════════════════════════════════════════════════
-  # JOB 2: OWASP
-  # Using official GitHub Actio (no H2 bug)
-  # usando GitHub Action oficial (sin bug H2)
+  # JOB 2: OWASP Dependency Check
+  # Runs on all push/PR to main, also required as a status check
+  # Corre en todo push/PR a main, También requerido como status check
   # ═══════════════════════════════════════════════════════════
   owasp-check:
     name: OWASP Dependency Check
@@ -63,37 +63,43 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Configure Java 17 (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: 'maven'
+
       # Cache the local NVD database to avoid downloading it every time
       # Cachear la base de datos NVD local para no descargarla cada vez
       - name: OWASP NVD database cache
         uses: actions/cache@v4
         with:
-          path: ~/.dependency-check
+          path: ~/.owasp/dependency-check-data
           key: owasp-nvd-${{ runner.os }}-${{ hashFiles('**/pom.xml') }}
           restore-keys: |
             owasp-nvd-${{ runner.os }}-
 
-      # We use the official OWASP GitHub Action - avoids the Maven plugin H2 bug
-      # Usamos la GitHub Action oficial de OWASP — evita el bug H2 del plugin Maven
-      - name: OWASP Dependency Check
-        uses: dependency-check/Dependency-Check_Action@main
-        with:
-          project: 'Secure-Wallet-API'
-          path: '.'
-          format: 'HTML,JSON'
-          args: >
-            --nvdApiKey ${{ secrets.NVD_APIKEY }}
-            --failOnCVSS 7
-            --suppression owasp-suppressions.xml
-            --data ~/.dependency-check/data
-            --out reports
+      - name: Run OWASP Dependency Check
+        run: |
+          ./mvnw dependency-check:check \
+            --no-transfer-progress \
+            -DnvdApiKey=${{ secrets.NVD_APIKEY }} \
+            -DfailBuildOnCVSS=7 \
+            -DsuppressionFile=owasp-suppressions.xml \
+            -Ddependency-check.dataDirectory=$HOME/.owasp/dependency-check-data \
+            -Ddependency-check.nvdDatafeedServletUrl= \
+            -Ddependency-check.autoUpdate=true \
+            -Ddependency-check.connectionString="jdbc:h2:file:%s;AUTO_SERVER=FALSE;MV_STORE=TRUE;DB_CLOSE_ON_EXIT=TRUE"
 
       - name: Publish OWASP report
         uses: actions/upload-artifact@v4
         if: always()
         with:
           name: owasp-report-${{ github.run_id }}
-          path: reports/
+          path: |
+            target/dependency-check-report.html
+            target/dependency-check-report.json
           retention-days: 30
 
   # ═══════════════════════════════════════════════════════════
