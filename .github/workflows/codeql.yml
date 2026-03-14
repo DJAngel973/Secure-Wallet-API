@@ -45,3 +45,9 @@ jobs:
         uses: github/codeql-action/analyze@v3
         with:
           category: "/language:java"
+          # If Code Scanning is not enabled, the build does not fail
+          # Si no está habilitado Code Scanning, no falla el build
+          upload: ${{ github.event_name != 'pull_request' }}
+          continue-on-error: true
+          # Does not block the CI if Code Scanning is not enabled
+          # No bloquea el CI si Code Scanning no está habilitado
