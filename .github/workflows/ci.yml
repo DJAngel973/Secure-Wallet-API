@@ -88,9 +88,10 @@ jobs:
             -DfailBuildOnCVSS=7 \
             -DsuppressionFile=owasp-suppressions.xml \
             -Ddependency-check.dataDirectory=$HOME/.owasp/dependency-check-data \
-            -Ddependency-check.nvdDatafeedServletUrl= \
             -Ddependency-check.autoUpdate=true \
-            -Ddependency-check.connectionString="jdbc:h2:file:%s;AUTO_SERVER=FALSE;MV_STORE=TRUE;DB_CLOSE_ON_EXIT=TRUE"
+            -Dthreads=1 \
+            -DdataStoreType=H2 \
+            -Ddependency-check.connectionString="jdbc:h2:file:%s;AUTO_SERVER=FALSE;MV_STORE=TRUE;DB_CLOSE_ON_EXIT=FALSE;LOCK_TIMEOUT=60000"
 
       - name: Publish OWASP report
         uses: actions/upload-artifact@v4
