@@ -75,13 +75,12 @@ jobs:
         with:
           project: 'Secure-Wallet-API'
           path: '.'
-          format: 'HTML,JSON'
-          args: >
+          format: 'ALL'
+          args: >-
             --nvdApiKey ${{ secrets.NVD_APIKEY }}
             --failOnCVSS 7
             --suppression owasp-suppressions.xml
             --data ~/.dependency-check/data
-            --out reports
 
       - name: Publish OWASP report
         uses: actions/upload-artifact@v4
