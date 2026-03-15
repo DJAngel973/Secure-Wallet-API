@@ -50,43 +50,36 @@ jobs:
           retention-days: 7
 
   # ═══════════════════════════════════════════════════════════
-  # JOB 2: OWASP
-  # Using official GitHub Actio (no H2 bug)
-  # usando GitHub Action oficial (sin bug H2)
-  # ═══════════════════════════════════════════════════════════
+  # JOB 2: OWASP Dependency Check
+  # Uses official GitHub Action — no H2 race condition bug
+  # ══════���════════════════════════════════════════════════════
   owasp-check:
     name: OWASP Dependency Check
     runs-on: ubuntu-latest
-    needs: build-and-test # Only if I compile and test OK - Solo si compilo y tests OK
+    needs: build-and-test
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # Cache the local NVD database to avoid downloading it every time
-      # Cachear la base de datos NVD local para no descargarla cada vez
-      - name: OWASP NVD database cache
+      - name: Cache OWASP NVD database
         uses: actions/cache@v4
         with:
-          path: ~/.dependency-check
-          key: owasp-nvd-${{ runner.os }}-${{ hashFiles('**/pom.xml') }}
+          path: ~/.dependency-check/data
+          key: owasp-nvd-${{ runner.os }}-${{ hashFiles('**/pom.xml') }}-v2
           restore-keys: |
             owasp-nvd-${{ runner.os }}-
 
-      # We use the official OWASP GitHub Action - avoids the Maven plugin H2 bug
-      # Usamos la GitHub Action oficial de OWASP — evita el bug H2 del plugin Maven
       - name: OWASP Dependency Check
         uses: dependency-check/Dependency-Check_Action@main
         with:
           project: 'Secure-Wallet-API'
           path: '.'
-          format: 'HTML,JSON'
-          args: >
+          format: 'ALL'
+          args: >-
             --nvdApiKey ${{ secrets.NVD_APIKEY }}
             --failOnCVSS 7
             --suppression owasp-suppressions.xml
-            --data ~/.dependency-check/data
-            --out reports
 
       - name: Publish OWASP report
         uses: actions/upload-artifact@v4
