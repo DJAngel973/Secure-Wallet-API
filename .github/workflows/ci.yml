@@ -80,7 +80,6 @@ jobs:
             --nvdApiKey ${{ secrets.NVD_APIKEY }}
             --failOnCVSS 7
             --suppression owasp-suppressions.xml
-            --data ~/.dependency-check/data
 
       - name: Publish OWASP report
         uses: actions/upload-artifact@v4
