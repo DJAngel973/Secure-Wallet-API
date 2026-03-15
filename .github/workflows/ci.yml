@@ -51,56 +51,44 @@ jobs:
 
   # ═══════════════════════════════════════════════════════════
   # JOB 2: OWASP Dependency Check
-  # Runs on all push/PR to main, also required as a status check
-  # Corre en todo push/PR a main, También requerido como status check
-  # ═══════════════════════════════════════════════════════════
+  # Uses official GitHub Action — no H2 race condition bug
+  # ══════���════════════════════════════════════════════════════
   owasp-check:
     name: OWASP Dependency Check
     runs-on: ubuntu-latest
-    needs: build-and-test # Only if I compile and test OK - Solo si compilo y tests OK
+    needs: build-and-test
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Configure Java 17 (Temurin)
-        uses: actions/setup-java@v4
-        with:
-          java-version: '17'
-          distribution: 'temurin'
-          cache: 'maven'
-
-      # Cache the local NVD database to avoid downloading it every time
-      # Cachear la base de datos NVD local para no descargarla cada vez
-      - name: OWASP NVD database cache
+      - name: Cache OWASP NVD database
         uses: actions/cache@v4
         with:
-          path: ~/.owasp/dependency-check-data
-          key: owasp-nvd-${{ runner.os }}-${{ hashFiles('**/pom.xml') }}
+          path: ~/.dependency-check/data
+          key: owasp-nvd-${{ runner.os }}-${{ hashFiles('**/pom.xml') }}-v2
           restore-keys: |
             owasp-nvd-${{ runner.os }}-
 
-      - name: Run OWASP Dependency Check
-        run: |
-          ./mvnw dependency-check:check \
-            --no-transfer-progress \
-            -DnvdApiKey=${{ secrets.NVD_APIKEY }} \
-            -DfailBuildOnCVSS=7 \
-            -DsuppressionFile=owasp-suppressions.xml \
-            -Ddependency-check.dataDirectory=$HOME/.owasp/dependency-check-data \
-            -Ddependency-check.autoUpdate=true \
-            -Dthreads=1 \
-            -DdataStoreType=H2 \
-            -Ddependency-check.connectionString="jdbc:h2:file:%s;AUTO_SERVER=FALSE;MV_STORE=TRUE;DB_CLOSE_ON_EXIT=FALSE;LOCK_TIMEOUT=60000"
+      - name: OWASP Dependency Check
+        uses: dependency-check/Dependency-Check_Action@main
+        with:
+          project: 'Secure-Wallet-API'
+          path: '.'
+          format: 'HTML,JSON'
+          args: >
+            --nvdApiKey ${{ secrets.NVD_APIKEY }}
+            --failOnCVSS 7
+            --suppression owasp-suppressions.xml
+            --data ~/.dependency-check/data
+            --out reports
 
       - name: Publish OWASP report
         uses: actions/upload-artifact@v4
         if: always()
         with:
           name: owasp-report-${{ github.run_id }}
-          path: |
-            target/dependency-check-report.html
-            target/dependency-check-report.json
+          path: reports/
           retention-days: 30
 
   # ═══════════════════════════════════════════════════════════
