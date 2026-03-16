@@ -1,7 +1,10 @@
 # Secure Wallet API
 
-A secure, production-ready RESTful API for digital wallet management, built with **Java 17**, **Spring Boot 3**, **PostgreSQL 16**, and **Docker**. Designed with a **DevSecOps-first** approach: security, automation, testing, and code quality are built in from day one.
+A backend REST API for a secure digital wallet system, built with **Java 17**, **Spring Boot 3**, **PostgreSQL 16**, and **Docker**.
 
+Designed with a **DevSecOps-first approach**: security, automation, testing, and code quality are built in from day one — not added as an afterthought.
+
+> **This project is a portfolio project, actively under development.**
 ---
 
 ## Features
@@ -21,38 +24,31 @@ A secure, production-ready RESTful API for digital wallet management, built with
 - **Deposit**: add funds from an external source
 - **Withdrawal**: withdraw funds to an external destination
 - **Transfer**: move funds between any two wallets
-- Full transaction history and account statements
+- Transaction history and account statement export
 
 ### Security (DevSecOps)
 - JWT authentication with refresh token rotation
 - Two-Factor Authentication (2FA / TOTP)
-- OWASP Dependency Check on every PR
-- CodeQL static security analysis on every PR
-- BCrypt password hashing — passwords never stored in plain text
+- BCrypt password hashing — never stored in plain text
 - Rate limiting and brute-force protection
+- OWASP Dependency Check on every PR (CVE scan)
+- CodeQL static analysis on every PR
 
 ---
 
-## Architecture
+## Tech Stack
 
-```
-src/
-├── auth/           # JWT, 2FA, login/logout
-├── user/           # User CRUD (Admin)
-├── wallet/         # Wallet management
-├── transaction/    # Deposits, withdrawals, transfers
-├── audit/          # Security audit logs
-└── common/         # Shared utilities, exceptions, config
-
-database/
-├── 01-extensions   # pgcrypto, uuid-ossp
-├── 02-types        # ENUMs (roles, status, currencies)
-├── 03-tables       # Core schema
-├── 04-index        # Performance indexes
-├── 05-triggers     # Auto-audit, balance validation
-├── 06-functions    # ACID transaction processor
-└── 07-seed         # Development test data
-```
+| Layer | Technology |
+|-------|-----------|
+| Language | Java 17 |
+| Framework | Spring Boot 3 |
+| Security | Spring Security + JWT |
+| Database | PostgreSQL 16 |
+| Containers | Docker + Docker Compose |
+| Build | Maven 3.9 |
+| CI/CD | GitHub Actions |
+| Security Scan | OWASP Dependency Check |
+| Static Analysis | CodeQL |
 
 ---
 
@@ -86,11 +82,8 @@ docker compose up -d
 ## Testing
 
 ```bash
-# Unit tests
+# Run unit tests
 ./mvnw test
-
-# With coverage report
-./mvnw test jacoco:report
 ```
 
 ---
@@ -100,7 +93,7 @@ docker compose up -d
 | Job | Trigger | Description |
 |-----|---------|-------------|
 | Build & Test | Every PR / push | Compile + unit tests |
-| OWASP Dependency Check | Every PR / push | CVE scan (fails on CVSS ≥ 7) |
+| OWASP Dependency Check | Every PR / push | CVE scan — fails on CVSS ≥ 7 |
 | CodeQL Analysis | Every PR / push | Static security analysis |
 | Package JAR | Merge to `main` | Build production artifact |
 
