@@ -34,6 +34,9 @@ spring:
         order_updates: true
         # OWASP: Usar prepared statements (default en Hibernate)
         use_sql_comments: false
+        # UUID mapping: tell Hibernate to use PostgreSQL UUID type natively
+        # Required because IDs in DB are UUID (gen_random_uuid())
+        default_schema: public
 
 # SERVER - Apache Tomcat
 server:
@@ -70,7 +73,8 @@ server:
 # JWT - Autenticación
 jwt:
   secret: ${JWT_SECRET}
-  expiration: ${JWT_EXPIRATION:86400000}  # 24 hours (ms)
+  expiration: ${JWT_EXPIRATION:900000}  # 15 minutes
+  refresh-expiration: ${JWT_EXPIRATION:604800000} # 7 days for Refresh Token
   issuer: secure-wallet-api
   header: Authorization
   prefix: Bearer
