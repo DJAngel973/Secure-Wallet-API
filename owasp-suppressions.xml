@@ -82,4 +82,18 @@
         <cvssBelow>7.0</cvssBelow>
     </suppress>
 
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <!-- CSRF -->
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <suppress>
+        <notes>
+            CSRF disabled intentionally in SecurityConfig.
+            This is a stateless REST API using JWT tokens in Authorization header.
+            Browsers never auto-send Authorization headers, making CSRF attacks
+            impossible. See DECISIONS.md ADR-003 and SECURITY.md.
+        </notes>
+        <filePath>**/SecurityConfig.java</filePath>
+        <cwe>352</cwe>
+    </suppress>
+
     </suppressions>
