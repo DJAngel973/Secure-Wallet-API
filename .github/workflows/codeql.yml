@@ -37,13 +37,15 @@ jobs:
           # Extended security queries (recommended for financial projects)
           # Queries de seguridad extendidas (recomendado para proyectos financieros)
           queries: security-extended
+          # Config file excludes known false positives (CSRF in stateless JWT API)
+          # See .github/codeql/codeql-config.yml and DECISIONS.md ADR-003
+          config-file: ./.github/codeql/codeql-config.yml
 
       - name: Build for CodeQL
         run: ./mvnw clean compile -DskipTests --no-transfer-progress
 
       - name: Run CodeQL analysis
         uses: github/codeql-action/analyze@v3
-        continue-on-error: true
         with:
           category: "/language:java"
           upload: true
