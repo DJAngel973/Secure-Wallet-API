@@ -17,16 +17,17 @@ import org.springframework.security.web.SecurityFilterChain;
  * Central Spring Security configuration.
  *
  * OWASP A01 - Broken Access Control:
- *   "Deny by default" — ALL endpoints are blocked unless explicitly permitted.
+ *   "Deny by default" — ALL endpoints blocked unless explicitly permitted.
  *
  * OWASP A07 - Identification and Authentication Failures:
  *   Stateless JWT. BCrypt strength 12 for passwords.
  *
- * NOTE on CSRF:
- *   CSRF protection is intentionally disabled. This is a stateless REST API
- *   that authenticates via JWT tokens in the Authorization header — not cookies.
- *   Browsers never send Authorization headers automatically, making CSRF
- *   attacks impossible in this architecture. See DECISIONS.md ADR-003.
+ * NOTE on CSRF (CodeQL alert suppressed intentionally):
+ *   CSRF protection is disabled because this is a stateless REST API.
+ *   Authentication uses JWT tokens sent in the Authorization header — not cookies.
+ *   The browser never sends the Authorization header automatically, so CSRF
+ *   attacks are not applicable. Ref: OWASP CSRF Prevention Cheat Sheet,
+ *   section "Stateless REST APIs". See also DECISIONS.md ADR-003.
  */
 @Configuration
 @EnableWebSecurity
@@ -53,13 +54,15 @@ public class SecurityConfig {
     };
 
     @Bean
-    @SuppressWarnings("java:S4502") // CSRF disabled intentionally - stateless JWT API
+    @SuppressWarnings("lgtm[java/spring-disabled-csrf-protection]")
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
-                // CSRF disabled — stateless REST API with JWT in Authorization header.
-                // Browsers do not auto-send Authorization headers → CSRF not applicable.
-                // OWASP CSRF Prevention Cheat Sheet: Token-based stateless APIs are exempt.
-                .csrf(AbstractHttpConfigurer::disable)
+                // CodeQL: java/spring-disabled-csrf-protection — suppressed intentionally.
+                // This is a stateless REST API using JWT in Authorization header.
+                // Browsers never auto-send Authorization headers — CSRF is not applicable.
+                // OWASP CSRF Prevention Cheat Sheet: stateless token-based APIs are exempt.
+                // Reference: DECISIONS.md ADR-003, SECURITY.md section "Authentication".
+                .csrf(AbstractHttpConfigurer::disable) // lgtm[java/spring-disabled-csrf-protection]
 
                 // OWASP A07: Stateless — never create or use HTTP sessions
                 .sessionManagement(session ->
