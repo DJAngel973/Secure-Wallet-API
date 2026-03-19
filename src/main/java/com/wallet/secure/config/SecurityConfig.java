@@ -18,19 +18,15 @@ import org.springframework.security.web.SecurityFilterChain;
  *
  * OWASP A01 - Broken Access Control:
  *   "Deny by default" — ALL endpoints are blocked unless explicitly permitted.
- *   Public endpoints are whitelisted in PUBLIC_ENDPOINTS.
  *
  * OWASP A07 - Identification and Authentication Failures:
- *   Stateless JWT (no HTTP session). BCrypt strength 12 for passwords.
+ *   Stateless JWT. BCrypt strength 12 for passwords.
  *
- * Roles defined in UserRole enum (maps to DB: user_role):
- *   USER, MANAGER, ADMIN
- *
- * Fine-grained role checks use @PreAuthorize on methods (enabled by
- * @EnableMethodSecurity). URL-level rules are only for broad patterns.
- *
- * NOTE: JwtAuthenticationFilter will be added here once auth/ domain
- * is implemented. Placeholder comment marks the exact insertion point.
+ * NOTE on CSRF:
+ *   CSRF protection is intentionally disabled. This is a stateless REST API
+ *   that authenticates via JWT tokens in the Authorization header — not cookies.
+ *   Browsers never send Authorization headers automatically, making CSRF
+ *   attacks impossible in this architecture. See DECISIONS.md ADR-003.
  */
 @Configuration
 @EnableWebSecurity
@@ -57,10 +53,12 @@ public class SecurityConfig {
     };
 
     @Bean
+    @SuppressWarnings("java:S4502") // CSRF disabled intentionally - stateless JWT API
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
-                // Disable CSRF: we use stateless JWT, not session cookies
-                // OWASP A01: CSRF only needed for cookie-based sessions
+                // CSRF disabled — stateless REST API with JWT in Authorization header.
+                // Browsers do not auto-send Authorization headers → CSRF not applicable.
+                // OWASP CSRF Prevention Cheat Sheet: Token-based stateless APIs are exempt.
                 .csrf(AbstractHttpConfigurer::disable)
 
                 // OWASP A07: Stateless — never create or use HTTP sessions
