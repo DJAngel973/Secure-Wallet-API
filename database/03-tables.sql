@@ -6,7 +6,7 @@ CREATE TABLE users (
     password_hash TEXT NOT NULL,
     role user_role NOT NULL DEFAULT 'USER',
     is_active BOOLEAN DEFAULT TRUE,
-    failed_login_attempts INT DEFAULT 0 CHECK (failed_login_attempts >= 0 AND failed_login_attempts <= 10),
+    failed_login_attempts INT DEFAULT 0 CHECK (failed_login_attempts >= 0 AND failed_login_attempts <= 3),
     locked_until TIMESTAMP,
     email_verified BOOLEAN DEFAULT FALSE,
     two_factor_enabled BOOLEAN DEFAULT FALSE,
