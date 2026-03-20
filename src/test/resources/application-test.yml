@@ -30,7 +30,11 @@ logging:
     root: WARN
     com.wallet.secure: DEBUG
 
-# No Actuator in tests
 management:
   endpoints:
-    enabled-by-default: false
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
