@@ -41,4 +41,13 @@ public class ApiResponse<T> {
     public static <T> ApiResponse<T> error(String message) {
         return new ApiResponse<>(false, message, null);
     }
+
+    /**
+     * Error response with additional data (e.g., validation errors map).
+     * Used by GlobalExceptionHandler for @Valid failures.
+     * OWASP A05: only field-level validation errors — never internal details.
+     */
+    public static <T> ApiResponse<T> error(String message, T data) {
+        return new ApiResponse<>(false, message, data);
+    }
 }
