@@ -251,4 +251,16 @@ public class UserService {
                 : "***";
         return masked + "@" + parts[1];
     }
+
+    /**
+     * Finds a user by email — used by UserController to resolve UUID from JWT principal.
+     * NOTE: This is a temporary bridge until CustomUserDetails carries the UUID directly.
+     * OWASP A03: JPA prepared statement via repository method.
+     */
+    @Transactional(readOnly = true)
+    public ApiResponse<UserResponse> findUserByEmail(String email) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new UserNotFoundException("User not found"));
+        return ApiResponse.ok("User found", toResponse(user));
+    }
 }
