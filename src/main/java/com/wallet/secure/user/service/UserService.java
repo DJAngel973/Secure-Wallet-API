@@ -269,8 +269,18 @@ public class UserService {
      */
     private String sanitizeForLog(String value) {
         if (value == null) return "null";
-        // Remove CR (\r), LF (\n) and tab (\t) — the core Log Injection vectors
-        return value.replaceAll("[\r\n\t]", "_");
+        // Replace control characters (including CR, LF, TAB) with a safe placeholder
+        StringBuilder sanitized = new StringBuilder(value.length());
+        for (int i = 0; i < value.length(); i++) {
+            char ch = value.charAt(i);
+            // ISO control chars or Unicode line separators → replace
+            if (Character.isISOControl(ch) || ch == '\u2028' || ch == '\u2029') {
+                sanitized.append('_');
+            } else {
+                sanitized.append(ch);
+            }
+        }
+        return sanitized.toString();
     }
 
     /**
