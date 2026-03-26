@@ -74,7 +74,7 @@ server:
 jwt:
   secret: ${JWT_SECRET}
   expiration: ${JWT_EXPIRATION:900000}  # 15 minutes
-  refresh-expiration: ${JWT_EXPIRATION:604800000} # 7 days for Refresh Token
+  refresh-expiration: ${JWT_REFRESH_EXPIRATION:604800000} # 7 days for Refresh Token
   issuer: secure-wallet-api
   header: Authorization
   prefix: Bearer
