@@ -1,0 +1,37 @@
+# Profile activated in CI: SPRING_PROFILES_ACTIVE=test
+# Overrides application.yml for the test environment.
+# Uses H2 in-memory DB — no PostgreSQL needed in CI.
+
+spring:
+  datasource:
+    url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    username: sa
+    password:
+    driver-class-name: org.h2.Driver
+
+  jpa:
+    database-platform: org.hibernate.dialect.H2Dialect
+    hibernate:
+      ddl-auto: create-drop  # CI: create tables fresh, drop after tests
+    show-sql: false
+
+  # Disable PostgreSQL-specific settings for H2
+  datasource.hikari:
+    maximum-pool-size: 5
+    minimum-idle: 1
+
+# JWT — fixed values for tests (not real secrets)
+jwt:
+  secret: test-secret-key-minimum-32-characters-long-ok
+  expiration: 900000
+  refresh-expiration: 604800000
+  issuer: secure-wallet-api
+  header: Authorization
+  prefix: Bearer
+
+# Disable actuator noise in tests
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
