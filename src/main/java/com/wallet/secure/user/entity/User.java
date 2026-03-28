@@ -67,6 +67,16 @@ public class User {
     private String passwordHash;
 
     /**
+     * Active refresh token for this user.
+     * NULL = user is logged out or has never logged in.
+     * Set on login, cleared on logout.
+     * OWASP A07: token revocation — logout truly invalidates the session.
+     * OWASP A02: stored as BCrypt hash, never the raw token.
+     */
+    @Column(name = "refresh_token", length = 512)
+    private String refreshToken;
+
+    /**
      * Role-based access control.
      * USER = standard client, ADMIN = superadmin, MANAGER = support.
      * Maps to PostgreSQL ENUM user_role (02-types.sql).
