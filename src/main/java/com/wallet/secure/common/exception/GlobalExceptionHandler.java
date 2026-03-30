@@ -102,6 +102,35 @@ public class GlobalExceptionHandler {
                 .body(ApiResponse.error(ex.getMessage()));
     }
 
+    /**
+     * 423 — Account locked by Spring Security (LockedException).
+     * Thrown by Spring Security when UserDetails.isAccountLocked() = true.
+     * OWASP A07: brute force protection.
+     */
+    @ExceptionHandler(org.springframework.security.authentication.LockedException.class)
+    public ResponseEntity<ApiResponse<Void>> handleLocked(
+            org.springframework.security.authentication.LockedException ex) {
+        log.warn("Login attempt on locked account");
+        return ResponseEntity
+                .status(HttpStatus.LOCKED)
+                .body(ApiResponse.error("Account temporarily locked. Try again later."));
+    }
+
+    /**
+     * 401 — Bad credentials (wrong password or user not found).
+     * Thrown by Spring Security AuthenticationManager.
+     * OWASP A07: same message for "user not found" and "wrong password"
+     *            to prevent user enumeration attacks.
+     */
+    @ExceptionHandler(org.springframework.security.authentication.BadCredentialsException.class)
+    public ResponseEntity<ApiResponse<Void>> handleBadCredentials(
+            org.springframework.security.authentication.BadCredentialsException ex) {
+        log.warn("Failed login attempt — bad credentials");
+        return ResponseEntity
+                .status(HttpStatus.UNAUTHORIZED)
+                .body(ApiResponse.error("Invalid credentials"));
+    }
+
     // ─── Validation Exceptions ────────────────────────────────────────────────
 
     /**
