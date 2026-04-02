@@ -81,7 +81,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             // Token present but invalid — log for security monitoring
             // OWASP A09: log security events for incident detection
             log.warn("Invalid or expired JWT token — request rejected: {}",
-                    request.getRequestURI());
+                    sanitizeForLog(request.getRequestURI()));
             filterChain.doFilter(request, response);
             return;
         }
@@ -145,5 +145,34 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
         // Remove "Bearer " prefix (7 characters) to get the raw token
         return authHeader.substring(BEARER_PREFIX.length());
+    }
+
+    /**
+     * Sanitizes user-controlled values before logging.
+     *
+     * WHY needed here:
+     * request.getRequestURI() and email come from the client.
+     * An attacker can include \n or \r in the URI to inject fake log lines.
+     * Example attack: GET /login%0A[WARN] Admin logged in successfully
+     * → Without sanitization, that fake line appears in the log.
+     *
+     * Replaces ISO control characters and Unicode line separators with '_'.
+     * OWASP A09: prevents log injection / log forging.
+     *
+     * @param value original value
+     * @return sanitized value safe for logging
+     */
+    private String sanitizeForLog(String value) {
+        if (value == null) return null;
+        StringBuilder sanitized = new StringBuilder(value.length());
+        for (int i = 0; i < value.length(); i++) {
+            char ch = value.charAt(i);
+            if (Character.isISOControl(ch) || ch == '\u2028' || ch == '\u2029') {
+                sanitized.append('_');
+            } else {
+                sanitized.append(ch);
+            }
+        }
+        return sanitized.toString();
     }
 }
