@@ -13,6 +13,9 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import com.wallet.secure.auth.security.JwtAuthFilter;
+import lombok.RequiredArgsConstructor;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 /**
  * Central Spring Security configuration.
@@ -33,7 +36,10 @@ import org.springframework.security.web.SecurityFilterChain;
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity   // Enables @PreAuthorize, @PostAuthorize on methods
+@RequiredArgsConstructor
 public class SecurityConfig {
+
+    private final JwtAuthFilter jwtAuthFilter;
 
     /**
      * Public endpoints — accessible without authentication.
@@ -87,7 +93,12 @@ public class SecurityConfig {
                         .requestMatchers(ADMIN_ENDPOINTS).hasRole("ADMIN")
                         // OWASP A01: deny everything not explicitly permitted
                         .anyRequest().authenticated()
-                );
+                )
+
+                // We need to populate SecurityContext BEFORE Spring Security
+                // Tries to evaluate authorization rules.
+                // OWASP A07: JWT validation happens on every request.
+                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
         // TODO: Add JWT filter here when auth/ domain is implemented:
         // http.addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
