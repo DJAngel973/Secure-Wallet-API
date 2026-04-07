@@ -30,8 +30,7 @@ import java.util.UUID;
  * If the client sent their own userId in the body, an attacker could
  * manipulate any user's data. OWASP A01: Broken Access Control.
  *
- * NOTE: register() is here temporarily until AuthController is created.
- * It will move to AuthController in the auth/ domain.
+ * OWASP A01: Broken Access Control prevention
  */
 @RestController
 @RequestMapping("/users")
@@ -40,24 +39,6 @@ import java.util.UUID;
 public class UserController {
 
     private final UserService userService;
-
-    // ─── Registration (temporary — will move to AuthController) ──────────────
-
-    /**
-     * POST /users/register
-     * Public endpoint — no JWT required.
-     * Validates RegisterRequest via @Valid before reaching the service.
-     *
-     * HTTP 201 Created — a new resource was created.
-     * Returns UserResponse — never the User entity.
-     */
-    @PostMapping("/register")
-    public ResponseEntity<ApiResponse<UserResponse>> register(
-            @Valid @RequestBody RegisterRequest request) {
-
-        ApiResponse<UserResponse> response = userService.register(request);
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
-    }
 
     // ─── Profile Read ─────────────────────────────────────────────────────────
 
