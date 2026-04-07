@@ -15,6 +15,7 @@ import lombok.extern.log4j.Log4j2;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.wallet.secure.common.util.LogSanitizer;
 
 import java.util.UUID;
 
@@ -62,7 +63,7 @@ public class UserService {
         // Step 1 — verify email is not taken
         if (userRepository.existsByEmail(request.getEmail())) {
             log.warn("Registration attempt with existing email: {}",
-                    safeLogEmail(request.getEmail()));
+                    LogSanitizer.sanitize(request.getEmail()));
             // OWASP A07: vague message — don't reveal if email exists
             throw new EmailAlreadyExistsException("Email already in use");
         }
@@ -85,7 +86,7 @@ public class UserService {
         User saved = userRepository.save(user);
 
         log.info("New user registered: id={}, email={}",
-                saved.getId(), safeLogEmail(saved.getEmail()));
+                saved.getId(), LogSanitizer.sanitize(saved.getEmail()));
 
         return ApiResponse.ok("User registered successfully", toResponse(saved));
     }
@@ -129,7 +130,7 @@ public class UserService {
                 throw new EmailAlreadyExistsException("Email already in use");
             }
             log.info("Email change requested: userId={}, from={} to={}",
-                    userId, safeLogEmail(user.getEmail()), safeLogEmail(request.getEmail()));
+                    userId, LogSanitizer.sanitize(user.getEmail()), LogSanitizer.sanitize(request.getEmail()));
 
             user.setEmail(request.getEmail());
             // Reset verification — new email must be verified
@@ -251,45 +252,6 @@ public class UserService {
                 ? local.substring(0, 2) + "***"
                 : "***";
         return masked + "@" + parts[1];
-    }
-
-    /**
-     * Sanitizes a value before writing it to logs.
-     * Removes newline and carriage return characters that enable Log Injection.
-     *
-     * WHY: An attacker could register with email "x@x.com\n[WARN] Fake log entry"
-     * Without this → the fake entry appears as a real log line.
-     * With this → newlines are removed → injection is impossible.
-     *
-     * OWASP A09: protect log integrity — logs are evidence in security incidents.
-     * CodeQL: java/log-injection fix.
-     *
-     * @param value raw user-provided value
-     * @return sanitized value safe for logging
-     */
-    private String sanitizeForLog(String value) {
-        if (value == null) return "null";
-        // Replace control characters (including CR, LF, TAB) with a safe placeholder
-        StringBuilder sanitized = new StringBuilder(value.length());
-        for (int i = 0; i < value.length(); i++) {
-            char ch = value.charAt(i);
-            // ISO control chars or Unicode line separators → replace
-            if (Character.isISOControl(ch) || ch == '\u2028' || ch == '\u2029') {
-                sanitized.append('_');
-            } else {
-                sanitized.append(ch);
-            }
-        }
-        return sanitized.toString();
-    }
-
-    /**
-     * Combines mask + sanitize — use this for ALL email values in logs.
-     * Mask: hides PII. Sanitize: prevents injection.
-     * Both protections are always needed together.
-     */
-    private String safeLogEmail(String email) {
-        return sanitizeForLog(maskEmail(email));
     }
 
     /**
