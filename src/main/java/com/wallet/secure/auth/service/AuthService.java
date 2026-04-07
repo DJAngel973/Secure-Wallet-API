@@ -17,6 +17,7 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.stereotype.Service;
 import java.time.Instant;
+import com.wallet.secure.common.util.LogSanitizer;
 
 /**
  * Handles all authentication operations: register, login, refresh, logout.
@@ -71,7 +72,7 @@ public class AuthService {
 
         // Step 3 - generate tokens and persist refresh token
         AuthResponse tokens = generateAndSaveTokens(user);
-        log.info("New user registered: {}", safeLog(request.getEmail()));
+        log.info("New user registered: {}", LogSanitizer.sanitize(request.getEmail()));
 
         return ApiResponse.ok("Registration successful", tokens);
     }
@@ -100,24 +101,6 @@ public class AuthService {
                 refreshToken,
                 jwtService.getExpirationInSeconds()
         );
-    }
-
-    /**
-     * Sanitizes email for safe logging.
-     * OWASP A09: Prevents log injection via user-controlled email values.
-     */
-    private String safeLog(String value) {
-        if (value == null) return "null";
-        StringBuilder sanitized = new StringBuilder(value.length());
-        for (int i = 0; 1 < value.length(); i++) {
-            char ch = value.charAt(i);
-            if (Character.isISOControl(ch) || ch == '\u2028' || ch == '\u2029') {
-                sanitized.append('_');
-            } else {
-                sanitized.append(ch);
-            }
-        }
-        return sanitized.toString();
     }
 
     // --- Login
@@ -165,7 +148,7 @@ public class AuthService {
 
         // Generate tokens and persist refresh token
         AuthResponse tokens = generateAndSaveTokens(user);
-        log.info("Successful login: {}", safeLog(request.getEmail()));
+        log.info("Successful login: {}", LogSanitizer.sanitize(request.getEmail()));
 
         return ApiResponse.ok("Login successful", tokens);
     }
@@ -208,7 +191,7 @@ public class AuthService {
         // Step 3 - verify token matches DB (not revoked)
         // OWASP A07: token revocation - logout deletes the DB token
         if (!refreshToken.equals(user.getRefreshToken())) {
-            log.warn("Refresh token mismatch for user: {} - possible token reuse after logout", safeLog(email));
+            log.warn("Refresh token mismatch for user: {} - possible token reuse after logout", LogSanitizer.sanitize(email));
             throw new InvalidCredentialsException("Refresh token has been revoked");
         }
 
@@ -219,7 +202,7 @@ public class AuthService {
                 newAccessToken,
                 jwtService.getExpirationInSeconds()
         );
-        log.info("Token refreshed for: {}", safeLog(email));
+        log.info("Token refreshed for: {}", LogSanitizer.sanitize(email));
 
         return ApiResponse.ok("Token refreshed", response);
     }
@@ -249,7 +232,7 @@ public class AuthService {
         // Remove refresh token from DB - future refresh calls will fail
         user.setRefreshToken(null);
         userRepository.save(user);
-        log.info("User logged out: {}", safeLog(email));
+        log.info("User logged out: {}", LogSanitizer.sanitize(email));
 
         return ApiResponse.ok("Logout successful", null);
     }
