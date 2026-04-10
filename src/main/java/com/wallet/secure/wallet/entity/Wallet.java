@@ -101,7 +101,7 @@ public class Wallet {
 
     @CreatedDate
     @Column(name = "created_at",nullable = false, updatable = false)
-    private Instant createAt;
+    private Instant createdAt;
 
     @LastModifiedDate
     @Column(name = "update_at", nullable = false)
