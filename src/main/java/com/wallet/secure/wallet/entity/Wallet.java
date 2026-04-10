@@ -5,7 +5,6 @@ import com.wallet.secure.common.enums.WalletStatus;
 import com.wallet.secure.user.entity.User;
 import jakarta.persistence.*;
 import lombok.*;
-import org.apache.tomcat.util.bcel.classfile.EnumElementValue;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
