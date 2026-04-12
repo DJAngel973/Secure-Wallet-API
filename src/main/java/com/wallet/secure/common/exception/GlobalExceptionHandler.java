@@ -48,6 +48,36 @@ public class GlobalExceptionHandler {
     }
 
     /**
+     * 404 - Any resource not found (wallet, transaction, etc.)
+     * Triggered by: WalletService, TransactionService when resource doesn't exist
+     * or doesn't belong to the requesting user.
+     * OWASP A01: same 404 response whether the resource doesn't exist
+     * or belongs to another user - prevents enumeration
+     */
+    @ExceptionHandler(ResourceNotFoundException.class)
+    public ResponseEntity<ApiResponse<Void>> handleResourceNotFound(
+            ResourceNotFoundException ex) {
+        log.warn("ResourceNotFoundException: {}", ex.getMessage());
+        return ResponseEntity
+                .status(HttpStatus.NOT_FOUND)
+                .body(ApiResponse.error(ex.getMessage()));
+    }
+
+    /**
+     * 409 Conflict - Business rule violation.
+     * Triggered by: WalletService when trying to create duplicate wallet,
+     * suspend a non-ACTIVE wallet, close a wallet with balance, etc.
+     */
+    @ExceptionHandler(IllegalStateException.class)
+    public ResponseEntity<ApiResponse<Void>> handleIlegalState(
+            IllegalStateException ex) {
+        log.warn("IlegalStateException: {}", ex.getMessage());
+        return ResponseEntity
+                .status(HttpStatus.CONFLICT)
+                .body(ApiResponse.error(ex.getMessage()));
+    }
+
+    /**
      * 409 — Email already registered.
      * Triggered by: UserService.register() and UserService.updateProfile().
      */
