@@ -263,4 +263,14 @@ public class WalletService {
         }
         return wallet;
     }
+
+    /**
+     * Resolves UUID from email for controller use.
+     * Temporary until CustomUserDetails stores UUID directly in JWT principal.
+     */
+    @Transactional(readOnly = true)
+    public UUID resolveUserId(String email) {
+        return userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found")).getId();
+    }
 }
