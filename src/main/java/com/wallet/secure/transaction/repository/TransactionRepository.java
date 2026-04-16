@@ -47,12 +47,7 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID> 
      * This query is only called after WalletService.validateWalletForTransaction()
      * confirms the wallet belongs to the requesting user
      */
-    @Query("""
-            SELECT t FROM Transaction t
-            WHERE t.sourceWallet.id = :walletId
-                OR t.targetWallet.id = :walletId
-            ORDER BY t.createdAt DESC
-            """)
+    @Query("SELECT t FROM Transaction t WHERE t.sourceWallet.id = :walletId OR t.targetWallet.id = :walletId ORDER BY t.createdAt DESC")
     Page<Transaction> findByWalletId(@Param("walletId") UUID walletId, Pageable pageable);
 
     /**
@@ -61,38 +56,21 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID> 
      * Used by: GET /transactions/me - full transaction history
      * OWASP A01: userId from JWT - user can only see their own history.
      */
-    @Query("""
-            SELECT t FROM Transaction t
-            WHERE t.sourceWallet.user.id = :userId
-                OR t.targetWallet.user.id = :userId
-            ORDER BY t.createdAt DESC
-            """)
+    @Query("SELECT t FROM Transaction t WHERE t.sourceWallet.user.id = :userId OR t.targetWallet.user.id = :userId ORDER BY t.createdAt DESC")
     Page<Transaction> findAllByUserId(@Param("userId") UUID userId, Pageable pageable);
 
     /**
      * Returns transaction filtered by type for a specific wallet.
      * User by: GET /transactions?type=DEPOSIT for filtered history
      */
-    @Query("""
-            SELECT t FROM Transaction t
-            WHERE (t.sourceWallet.id = :walletId
-                OR t.targetWallet.id = :walletId)
-                AND t.transactionType = :type
-            ORDER BY t.createdAt DESC
-            """)
+    @Query("SELECT t FROM Transaction t WHERE (t.sourceWallet.id = :walletId OR t.targetWallet.id = :walletId) AND t.transactionType = :type ORDER BY t.createdAt DESC")
     Page<Transaction> findByWalletIdAndType(@Param("walletId") UUID walletId, @Param("type") TransactionType type, Pageable pageable);
 
     /**
      * Returns transactions filtered by status for a specific wallet.
      * Used by admin monitoring: find all FAILED transactions.
      */
-    @Query("""
-            SELECT t FROM Transaction t
-            WHERE (t.sourceWallet.id = :walletId
-                OR t.targetWallet.id = :walletId)
-                AND t.status = :status
-            ORDER BY t.createdAt DESC
-            """)
+    @Query("SELECT t FROM Transaction t WHERE (t.sourceWallet.id = :walletId OR t.targetWallet.id = :walletId) AND t.status = :status ORDER BY t.createdAt DESC")
     Page<Transaction> findByWalletIdAndStatus(@Param("walletId") UUID walletId, @Param("status") TransactionStatus status, Pageable pageable);
 
     /**
@@ -100,13 +78,7 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID> 
      * Used by: GET /transactions?from=2026-01-01&to=2026-03-31
      * Useful for monthly statements and audit reports
      */
-    @Query("""
-            SELECT t FROM Transaction t
-            WHERE (t.sourceWallet.id = :walletId
-                OR t.targetWallet.id = :walletId)
-                AND t.createdAt BETWEEN = :from AND :to
-            ORDER BY t.createdAt DESC
-            """)
+    @Query("SELECT t FROM Transaction t WHERE (t.sourceWallet.id = :walletId OR t.targetWallet.id = :walletId) AND t.createdAt BETWEEN :from AND :to ORDER BY t.createdAt DESC")
     Page<Transaction> findByWalletIdAndDataRange(@Param("walletId") UUID walletId, @Param("from") Instant from, @Param("to") Instant to, Pageable pageable);
 
     // --- Single Transaction Lookup
@@ -122,12 +94,7 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID> 
      * OWASP A01: a user can only see transactions where they
      * are the sender or receiver - not all transactions in the system.
      */
-    @Query("""
-            SELECT t FROM Transaction t
-            WHERE t.id = :transactionId
-                AND (t.sourceWallet.user.id = :userId
-                OR t.targetWallet.user.id = :userId)
-            """)
+    @Query("SELECT t FROM Transaction t WHERE t.id = :transactionId AND (t.sourceWallet.user.id = :userId OR t.targetWallet.user.id = :userId)")
     Optional<Transaction> findByIdAndUserId(@Param("transactionId") UUID transactionId, @Param("userId") UUID userId);
 
     // --- Admin Queries
