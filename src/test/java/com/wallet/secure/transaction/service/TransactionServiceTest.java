@@ -128,7 +128,6 @@ class TransactionServiceTest {
             when(request.getReferenceCode()).thenReturn(null);
             lenient().when(request.getDescription()).thenReturn("Test deposit");
 
-            when(transactionRepository.existsByReferenceCode(any())).thenReturn(false);
             when(walletRepository.findByUserIdAndCurrency(ownerId, CurrencyCode.USD))
                     .thenReturn(Optional.of(sourceWallet));
             when(walletService.validateWalletForTransaction(sourceWalletId, ownerId))
