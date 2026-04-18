@@ -21,6 +21,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
 
 import java.util.Optional;
 import java.util.UUID;
@@ -103,7 +104,7 @@ class AuthServiceTest {
             when(request.getEmail()).thenReturn(TEST_EMAIL);
 
             // UserService.register() does not throw → user created successfully
-            doNothing().when(userService).register(request);
+            when(userService.register(any())).thenReturn(null);
 
             // After registration, AuthService loads the user by email to generate tokens
             when(userRepository.findByEmail(TEST_EMAIL))
@@ -129,7 +130,7 @@ class AuthServiceTest {
             // (race condition or consistency bug)
             RegisterRequest request = mock(RegisterRequest.class);
             when(request.getEmail()).thenReturn(TEST_EMAIL);
-            doNothing().when(userService).register(request);
+            when(userService.register(any())).thenReturn(null);
             when(userRepository.findByEmail(TEST_EMAIL)).thenReturn(Optional.empty());
 
             // WHEN / THEN
@@ -154,8 +155,8 @@ class AuthServiceTest {
             when(request.getPassword()).thenReturn("SecurePass12!");
 
             // AuthenticationManager does not throw → credentials are valid
-            doNothing().when(authenticationManager)
-                    .authenticate(any(UsernamePasswordAuthenticationToken.class));
+            when(authenticationManager.authenticate(any(UsernamePasswordAuthenticationToken.class)))
+                    .thenReturn(mock(Authentication.class));
 
             when(userRepository.findByEmail(TEST_EMAIL))
                     .thenReturn(Optional.of(testUser));
@@ -180,8 +181,8 @@ class AuthServiceTest {
             when(request.getEmail()).thenReturn(TEST_EMAIL);
             when(request.getPassword()).thenReturn("SecurePass12!");
 
-            doNothing().when(authenticationManager)
-                    .authenticate(any(UsernamePasswordAuthenticationToken.class));
+            when(authenticationManager.authenticate(any(UsernamePasswordAuthenticationToken.class)))
+                    .thenReturn(mock(Authentication.class));
             when(userRepository.findByEmail(TEST_EMAIL))
                     .thenReturn(Optional.of(testUser));
             when(userRepository.save(any(User.class))).thenReturn(testUser);
@@ -204,8 +205,8 @@ class AuthServiceTest {
             when(request.getEmail()).thenReturn(TEST_EMAIL);
             when(request.getPassword()).thenReturn("SecurePass12!");
 
-            doNothing().when(authenticationManager)
-                    .authenticate(any(UsernamePasswordAuthenticationToken.class));
+            when(authenticationManager.authenticate(any(UsernamePasswordAuthenticationToken.class)))
+                    .thenReturn(mock(Authentication.class));
             when(userRepository.findByEmail(TEST_EMAIL))
                     .thenReturn(Optional.of(testUser));
             when(userRepository.save(any(User.class))).thenReturn(testUser);
