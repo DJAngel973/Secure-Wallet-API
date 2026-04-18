@@ -108,7 +108,7 @@ class TransactionServiceTest {
                 .build();
 
         // Default: save() returns the same transaction passed to it
-        when(transactionRepository.save(any(Transaction.class)))
+        lenient().when(transactionRepository.save(any(Transaction.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
     }
 
@@ -126,7 +126,7 @@ class TransactionServiceTest {
             when(request.getCurrency()).thenReturn(CurrencyCode.USD);
             when(request.getAmount()).thenReturn(BigDecimal.valueOf(200.00));
             when(request.getReferenceCode()).thenReturn(null);
-            when(request.getDescription()).thenReturn("Test deposit");
+            lenient().when(request.getDescription()).thenReturn("Test deposit");
 
             when(transactionRepository.existsByReferenceCode(any())).thenReturn(false);
             when(walletRepository.findByUserIdAndCurrency(ownerId, CurrencyCode.USD))
@@ -202,7 +202,7 @@ class TransactionServiceTest {
             when(request.getCurrency()).thenReturn(CurrencyCode.USD);
             when(request.getAmount()).thenReturn(BigDecimal.valueOf(100.00));
             when(request.getReferenceCode()).thenReturn(null);
-            when(request.getDescription()).thenReturn("ATM withdrawal");
+            lenient().when(request.getDescription()).thenReturn("ATM withdrawal");
 
             when(walletRepository.findByUserIdAndCurrency(ownerId, CurrencyCode.USD))
                     .thenReturn(Optional.of(sourceWallet));
@@ -236,7 +236,7 @@ class TransactionServiceTest {
             when(request.getCurrency()).thenReturn(CurrencyCode.USD);
             when(request.getAmount()).thenReturn(BigDecimal.valueOf(999.00)); // more than 500
             when(request.getReferenceCode()).thenReturn(null);
-            when(request.getDescription()).thenReturn("Over-withdrawal attempt");
+            lenient().when(request.getDescription()).thenReturn("Over-withdrawal attempt");
 
             when(walletRepository.findByUserIdAndCurrency(ownerId, CurrencyCode.USD))
                     .thenReturn(Optional.of(sourceWallet));
@@ -296,7 +296,7 @@ class TransactionServiceTest {
             when(request.getSourceWalletId()).thenReturn(sourceWalletId);
             when(request.getTargetWalletId()).thenReturn(targetWalletId);
             when(request.getAmount()).thenReturn(BigDecimal.valueOf(150.00));
-            when(request.getDescription()).thenReturn("Split bill");
+            lenient().when(request.getDescription()).thenReturn("Split bill");
 
             when(walletService.validateWalletForTransaction(sourceWalletId, ownerId))
                     .thenReturn(sourceWallet);
@@ -353,7 +353,7 @@ class TransactionServiceTest {
             TransferRequest request = mock(TransferRequest.class);
             when(request.getSourceWalletId()).thenReturn(sourceWalletId);
             when(request.getTargetWalletId()).thenReturn(targetWalletId);
-            when(request.getAmount()).thenReturn(BigDecimal.valueOf(50.00));
+            lenient().when(request.getAmount()).thenReturn(BigDecimal.valueOf(50.00));
 
             when(walletService.validateWalletForTransaction(sourceWalletId, ownerId))
                     .thenReturn(sourceWallet);
@@ -406,7 +406,7 @@ class TransactionServiceTest {
             TransferRequest request = mock(TransferRequest.class);
             when(request.getSourceWalletId()).thenReturn(sourceWalletId);
             when(request.getTargetWalletId()).thenReturn(targetWalletId);
-            when(request.getAmount()).thenReturn(BigDecimal.valueOf(50.00));
+            lenient().when(request.getAmount()).thenReturn(BigDecimal.valueOf(50.00));
 
             when(walletService.validateWalletForTransaction(sourceWalletId, ownerId))
                     .thenReturn(sourceWallet);
@@ -428,7 +428,7 @@ class TransactionServiceTest {
             TransferRequest request = mock(TransferRequest.class);
             when(request.getSourceWalletId()).thenReturn(sourceWalletId);
             when(request.getTargetWalletId()).thenReturn(targetWalletId);
-            when(request.getAmount()).thenReturn(BigDecimal.valueOf(50.00));
+            lenient().when(request.getAmount()).thenReturn(BigDecimal.valueOf(50.00));
 
             when(walletService.validateWalletForTransaction(sourceWalletId, ownerId))
                     .thenReturn(sourceWallet);
