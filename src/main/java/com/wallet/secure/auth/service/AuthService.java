@@ -123,6 +123,7 @@ public class AuthService {
      * OWASP A09: accurate IP is critical for geographic anomaly detection
      */
     private String extractIp(HttpServletRequest request) {
+        if (request == null) return "unknown";
         String forwarded = request.getHeader("X-Forwarded_For");
         if (forwarded != null && !forwarded.isBlank()) {
             // X-Forwarded-For can contain multiple IPs: "client, proxy1, proxy2"
@@ -137,6 +138,7 @@ public class AuthService {
      * Returns "unknown" if not present - never null.
      */
     private String extractUserAgent(HttpServletRequest request) {
+        if (request == null) return "unknown";
         String ua = request.getHeader("User-Agent");
         return (ua != null && !ua.isBlank()) ? ua : "unknown";
     }
@@ -175,14 +177,14 @@ public class AuthService {
             userRepository.findByEmail(request.getEmail()).ifPresent(user ->
                     auditService.logLoginFailure(user.getId(),
                             request.getEmail(),
-                            "Account locked", ip, userAgent));
+                            "Account locked", extractIp(httpRequest), extractUserAgent(httpRequest)));
             throw e;
         } catch (BadCredentialsException e) {
             // Log failure - check if brute force threshold is reached
             userRepository.findByEmail(request.getEmail()).ifPresent(user -> {
                 auditService.logLoginFailure(user.getId(),
                         request.getEmail(),
-                        "Bad credentials", ip, userAgent);
+                        "Bad credentials", extractIp(httpRequest), extractUserAgent(httpRequest));
                 // OWASP A07: brute force detection
                 // If >= 5 failures in 15 minutes -> CRITICAL alert
                 long recentFailures = auditService.countRecentFailedLogins(user.getId(), 15);
@@ -190,7 +192,8 @@ public class AuthService {
                     auditService.logCriticalSecurityEvent(
                             user.getId(),
                             String.format("Brute force detected: %s failed logins in 15 minutes", recentFailures),
-                            ip, userAgent);
+
+                            extractIp(httpRequest), extractUserAgent(httpRequest));
                 }
             });
             throw e;
@@ -209,7 +212,7 @@ public class AuthService {
         AuthResponse tokens = generateAndSaveTokens(user);
         // OWASP A09: log successful login with IP and device
         auditService.logLoginSuccess(user.getId(),
-                user.getEmail(), ip, userAgent);
+                user.getEmail(), extractIp(httpRequest), extractUserAgent(httpRequest));
 
         log.info("Successful login: userId={}", user.getId());
         return ApiResponse.ok("Login successful", tokens);

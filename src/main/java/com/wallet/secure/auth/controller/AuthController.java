@@ -6,6 +6,7 @@ import com.wallet.secure.auth.dto.RefreshTokenRequest;
 import com.wallet.secure.auth.service.AuthService;
 import com.wallet.secure.common.response.ApiResponse;
 import com.wallet.secure.user.dto.RegisterRequest;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
@@ -61,11 +62,8 @@ public class AuthController {
      * If validation fails -> GlobalExceptionHandler returns 400 with field errors.
      */
     @PostMapping("/register")
-    public ResponseEntity<ApiResponse<AuthResponse>> register(@Valid @RequestBody RegisterRequest request) {
-
-        ApiResponse<AuthResponse> response = authService.register(request);
-
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    public ResponseEntity<ApiResponse<AuthResponse>> register(@Valid @RequestBody RegisterRequest request, HttpServletRequest httpRequest) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(authService.register(request, httpRequest));
     }
 
     // --- login
@@ -83,11 +81,8 @@ public class AuthController {
      * -> prevents user enumeration (handled in AuthService/UserDetailsServiceImpl)
      */
     @PostMapping("/login")
-    public ResponseEntity<ApiResponse<AuthResponse>> login(@Valid @RequestBody LoginRequest request) {
-
-        ApiResponse<AuthResponse> response = authService.login(request);
-
-        return ResponseEntity.ok(response);
+    public ResponseEntity<ApiResponse<AuthResponse>> login(@Valid @RequestBody LoginRequest request, HttpServletRequest httpRequest) {
+        return ResponseEntity.ok(authService.login(request, httpRequest));
     }
 
     // --- Refresh
@@ -137,12 +132,7 @@ public class AuthController {
      * HTTP 200 — action completed, message in body confirms logout.
      */
     @PostMapping("/logout")
-    public ResponseEntity<ApiResponse<Void>> logout(@AuthenticationPrincipal UserDetails userDetails) {
-
-        // email extracted from JWT by JwtAuthFilter - trusted source
-        String email = userDetails.getUsername();
-        ApiResponse<Void> response = authService.logout(email);
-
-        return ResponseEntity.ok(response);
+    public ResponseEntity<ApiResponse<Void>> logout(@AuthenticationPrincipal UserDetails userDetails, HttpServletRequest httpRequest) {
+        return ResponseEntity.ok(authService.logout(userDetails.getUsername(), httpRequest));
     }
 }
