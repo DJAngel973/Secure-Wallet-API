@@ -1,5 +1,6 @@
 package com.wallet.secure.auth.service;
 
+import com.wallet.secure.audit.service.AuditService;
 import com.wallet.secure.auth.dto.AuthResponse;
 import com.wallet.secure.auth.dto.LoginRequest;
 import com.wallet.secure.auth.dto.RefreshTokenRequest;
@@ -10,6 +11,7 @@ import com.wallet.secure.user.dto.RegisterRequest;
 import com.wallet.secure.user.entity.User;
 import com.wallet.secure.user.repository.UserRepository;
 import com.wallet.secure.user.service.UserService;
+import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -56,6 +58,8 @@ class AuthServiceTest {
     @Mock private UserRepository userRepository;
     @Mock private JwtService jwtService;
     @Mock private UserService userService;
+    @Mock private AuditService auditService;
+    @Mock private HttpServletRequest httpRequest;
 
     @InjectMocks
     private AuthService authService;
@@ -88,6 +92,24 @@ class AuthServiceTest {
                 .thenReturn(REFRESH_TOKEN);
         lenient().when(jwtService.getExpirationInSeconds())
                 .thenReturn(900L);
+
+        // HttpServletRequest stubs — lenient because not all tests reach extractIp()
+        // Returns controlled values so audit calls don't fail
+        lenient().when(httpRequest.getHeader("X-Forwarded-For")).thenReturn(null);
+        lenient().when(httpRequest.getRemoteAddr()).thenReturn("127.0.0.1");
+        lenient().when(httpRequest.getHeader("User-Agent")).thenReturn("JUnit-Test-Agent");
+
+        // AuditService stubs — lenient because audit calls are fire-and-forget
+        // We don't assert on audit calls in most tests — they have their own tests
+        lenient().doNothing().when(auditService)
+                .logLoginSuccess(any(), anyString(), anyString(), anyString());
+        lenient().doNothing().when(auditService)
+                .logLoginFailure(any(), anyString(), anyString(), anyString(), anyString());
+        lenient().doNothing().when(auditService)
+                .logRegister(any(), anyString(), anyString(), anyString());
+        lenient().doNothing().when(auditService)
+                .logLogout(any(), anyString(), anyString(), anyString());
+        lenient().when(auditService.countRecentFailedLogins(any(), anyInt())).thenReturn(0L);
     }
 
     // ─── register
@@ -112,7 +134,7 @@ class AuthServiceTest {
             when(userRepository.save(any(User.class))).thenReturn(testUser);
 
             // WHEN
-            ApiResponse<AuthResponse> response = authService.register(request);
+            ApiResponse<AuthResponse> response = authService.register(request, httpRequest);
 
             // THEN
             assertThat(response.isSuccess()).isTrue();
@@ -134,7 +156,7 @@ class AuthServiceTest {
             when(userRepository.findByEmail(TEST_EMAIL)).thenReturn(Optional.empty());
 
             // WHEN / THEN
-            assertThatThrownBy(() -> authService.register(request))
+            assertThatThrownBy(() -> authService.register(request, httpRequest))
                     .isInstanceOf(IllegalStateException.class)
                     .hasMessageContaining("User not found immediately after creation");
         }
@@ -163,7 +185,7 @@ class AuthServiceTest {
             when(userRepository.save(any(User.class))).thenReturn(testUser);
 
             // WHEN
-            ApiResponse<AuthResponse> response = authService.login(request);
+            ApiResponse<AuthResponse> response = authService.login(request, httpRequest);
 
             // THEN
             assertThat(response.isSuccess()).isTrue();
@@ -188,7 +210,7 @@ class AuthServiceTest {
             when(userRepository.save(any(User.class))).thenReturn(testUser);
 
             // WHEN
-            authService.login(request);
+            authService.login(request, httpRequest);
 
             // THEN — failed attempts reset to 0 after legitimate login
             // OWASP A07: prevents permanent lockout after a legitimate login
@@ -212,7 +234,7 @@ class AuthServiceTest {
             when(userRepository.save(any(User.class))).thenReturn(testUser);
 
             // WHEN
-            authService.login(request);
+            authService.login(request, httpRequest);
 
             // THEN — lastLoginAt was set — used for suspicious activity detection
             assertThat(testUser.getLastLoginAt()).isNotNull();
@@ -234,7 +256,7 @@ class AuthServiceTest {
             // OWASP A07: BadCredentialsException propagated to GlobalExceptionHandler
             // which returns 401 with a generic message — client cannot tell
             // whether the email or the password was wrong (prevents user enumeration)
-            assertThatThrownBy(() -> authService.login(request))
+            assertThatThrownBy(() -> authService.login(request, httpRequest))
                     .isInstanceOf(BadCredentialsException.class);
 
             // No tokens were generated — login failed before reaching token generation
@@ -349,7 +371,7 @@ class AuthServiceTest {
             when(userRepository.save(any(User.class))).thenReturn(testUser);
 
             // WHEN
-            ApiResponse<Void> response = authService.logout(TEST_EMAIL);
+            ApiResponse<Void> response = authService.logout(TEST_EMAIL, httpRequest);
 
             // THEN
             assertThat(response.isSuccess()).isTrue();
@@ -367,7 +389,7 @@ class AuthServiceTest {
             when(userRepository.findByEmail(TEST_EMAIL)).thenReturn(Optional.empty());
 
             // WHEN / THEN
-            assertThatThrownBy(() -> authService.logout(TEST_EMAIL))
+            assertThatThrownBy(() -> authService.logout(TEST_EMAIL, httpRequest))
                     .isInstanceOf(InvalidCredentialsException.class);
 
             // Nothing was saved — user didn't exist
