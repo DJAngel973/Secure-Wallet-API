@@ -1,5 +1,6 @@
 package com.wallet.secure.wallet.service;
 
+import com.wallet.secure.audit.service.AuditService;
 import com.wallet.secure.common.enums.CurrencyCode;
 import com.wallet.secure.common.enums.WalletStatus;
 import com.wallet.secure.common.exception.ResourceNotFoundException;
@@ -53,8 +54,8 @@ public class WalletServiceTest {
     @Mock
     private WalletRepository walletRepository;
 
-    @Mock
-    private UserRepository userRepository;
+    @Mock private UserRepository userRepository;
+    @Mock private AuditService auditService;
 
     @InjectMocks
     private WalletService walletService;

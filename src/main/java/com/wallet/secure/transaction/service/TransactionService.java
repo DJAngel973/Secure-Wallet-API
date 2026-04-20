@@ -1,5 +1,6 @@
 package com.wallet.secure.transaction.service;
 
+import com.wallet.secure.audit.service.AuditService;
 import com.wallet.secure.common.enums.CurrencyCode;
 import com.wallet.secure.common.enums.TransactionStatus;
 import com.wallet.secure.common.enums.TransactionType;
@@ -76,6 +77,7 @@ public class TransactionService {
     private final TransactionRepository transactionRepository;
     private final WalletRepository walletRepository;
     private final WalletService walletService;
+    private final AuditService auditService;
 
     // --- DEPOSIT
 
@@ -136,6 +138,14 @@ public class TransactionService {
             transaction.markAsCompleted();
             transactionRepository.save(transaction);
 
+            auditService.logTransactionSuccess(
+                    userId,
+                    transaction.getId(),
+                    TransactionType.DEPOSIT.name(),
+                    request.getAmount().toPlainString(),
+                    request.getCurrency().name(),
+                    null, null);
+
             log.info("DEPOSIT completed: txId={} amount={} currency={} userId={}",
                     transaction.getId(),
                     request.getAmount(),
@@ -146,9 +156,14 @@ public class TransactionService {
 
         } catch (Exception e) {
             // Mark transaction as FAILD - keeps audit trail
-            // @Transactional will rollback the balance change
+            // @Transactional will roll back the balance change
             transaction.markAsFailed();
             transactionRepository.save(transaction);
+            auditService.logTransactionFailure(
+                    userId,
+                    TransactionType.DEPOSIT.name(),
+                    e.getMessage(),
+                    null, null);
             log.error("DEPOSIT failed: txId={} reason={}", transaction.getId(), e.getMessage());
             throw e; // rethrow - @Transactional needs the exception to trigger rollback
         }
@@ -214,6 +229,14 @@ public class TransactionService {
             transaction.markAsCompleted();
             transactionRepository.save(transaction);
 
+            auditService.logTransactionSuccess(
+                    userId,
+                    transaction.getId(),
+                    TransactionType.WITHDRAWAL.name(),
+                    request.getAmount().toPlainString(),
+                    request.getCurrency().name(),
+                    null, null);
+
             log.info("WITHDRAWAL completed: txId={} amount={} currency={} userId={}",
                     transaction.getId(),
                     request.getAmount(),
@@ -225,6 +248,13 @@ public class TransactionService {
         } catch (Exception e) {
             transaction.markAsFailed();
             transactionRepository.save(transaction);
+
+            auditService.logTransactionFailure(
+                    userId,
+                    "WITHDRAWAL",
+                    e.getMessage(),
+                    null, null);
+
             log.error("WITHDRAWAL failed: txId={} reason={}", transaction.getId(), e.getMessage());
             throw e;
         }
@@ -323,6 +353,14 @@ public class TransactionService {
             transaction.markAsCompleted();
             transactionRepository.save(transaction);
 
+            auditService.logTransactionSuccess(
+                    userId,
+                    transaction.getId(),
+                    TransactionType.TRANSFER.name(),
+                    request.getAmount().toPlainString(),
+                    sourceWallet.getCurrency().name(),
+                    null, null);
+
             log.info("TRANSFER completed: txId={} amount={} currency={} from={} to={}",
                     transaction.getId(),
                     request.getAmount(),
@@ -335,6 +373,10 @@ public class TransactionService {
         } catch (Exception e) {
             transaction.markAsFailed();
             transactionRepository.save(transaction);
+
+            auditService.logTransactionFailure(
+                    userId, TransactionType.TRANSFER.name(), e.getMessage(), null, null);
+
             log.error("TRANSFER failed: txId={} reason={}", transaction.getId(), e.getMessage());
             throw e;
         }

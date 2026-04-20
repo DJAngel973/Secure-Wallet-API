@@ -1,5 +1,6 @@
 package com.wallet.secure.wallet.service;
 
+import com.wallet.secure.audit.service.AuditService;
 import com.wallet.secure.common.enums.CurrencyCode;
 import com.wallet.secure.common.enums.WalletStatus;
 import com.wallet.secure.common.exception.ResourceNotFoundException;
@@ -41,6 +42,7 @@ public class WalletService {
 
     private final WalletRepository walletRepository;
     private final UserRepository userRepository;
+    private final AuditService auditService;
 
     // --- Create
 
@@ -77,6 +79,8 @@ public class WalletService {
                 .build();
 
         Wallet saved = walletRepository.save(wallet);
+
+        auditService.logWalletCreated(userId, saved.getId(), saved.getCurrency().name(), null, null);
 
         log.info("Wallet created: currency={}  userId={}",
                 saved.getCurrency(),
@@ -174,6 +178,8 @@ public class WalletService {
         wallet.setStatus(WalletStatus.SUSPENDED);
         Wallet saved = walletRepository.save(wallet);
 
+        auditService.logWalletSuspended(wallet.getUser().getId(), walletId, null, null);
+
         log.warn("Wallet suspended: walletId={}", walletId);
 
         return ApiResponse.ok("Wallet suspended", WalletResponse.fromEntity(saved));
@@ -206,6 +212,8 @@ public class WalletService {
         }
         wallet.setStatus(WalletStatus.CLOSED);
         Wallet saved =  walletRepository.save(wallet);
+
+        auditService.logWalletClosed(wallet.getUser().getId(), walletId, null, null);
 
         log.warn("Wallet permanently closed: walletId={}", walletId);
 

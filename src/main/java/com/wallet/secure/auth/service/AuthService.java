@@ -1,5 +1,6 @@
 package com.wallet.secure.auth.service;
 
+import com.wallet.secure.audit.service.AuditService;
 import com.wallet.secure.auth.dto.AuthResponse;
 import com.wallet.secure.auth.dto.LoginRequest;
 import com.wallet.secure.auth.dto.RefreshTokenRequest;
@@ -10,25 +11,32 @@ import com.wallet.secure.user.dto.RegisterRequest;
 import com.wallet.secure.user.entity.User;
 import com.wallet.secure.user.repository.UserRepository;
 import com.wallet.secure.user.service.UserService;
-import org.springframework.transaction.annotation.Transactional;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authentication.LockedException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
 import java.time.Instant;
-import com.wallet.secure.common.util.LogSanitizer;
 
 /**
  * Handles all authentication operations: register, login, refresh, logout.
- *
  * Why AuthService is separate from UserService:
  * UserService manages user data (profile, password update, deactivation)
  * AuthService manages sessions (tokens, login attempts, logout)
  * Single Responsibility - each service has one reason to change.
- *
- * OWASP A07: This clas is the main defense against authentication failures.
- * Every method here has a direct security implication.
+ * AuditService integration:
+ * Every authentication event (success AND failure) is logged.
+ * OWASP A07 + A09: authentication failures are the primary signal
+ * for brute force detection and account compromise investigation
+ * HttpServiceRequest is injected to extract:
+ * -> IP address (X-Forwarded-For or remoteAddr)
+ * -> User-Agent(browser/device fingerprint)
+ * Both are stored in audit_logs for forensic analysis
  */
 @Service
 @RequiredArgsConstructor
@@ -39,17 +47,18 @@ public class AuthService {
     private final UserRepository userRepository;
     private final JwtService jwtService;
     private final UserService userService;
+    private final AuditService auditService;
 
     // --- Register
 
     /**
      * Creates a new account and returns tokens immediately.
-     *
+     * <p>
      * Why return tokens on register (not just 201 created):
      * The user is already authentication after registration.
      * Forcing an extra login step adds friction with no security benefit.
      * Standard practice: register -> auto-login -> redirect to dashboard.
-     *
+     * </p>
      * Flow:
      * 1. Delegate account creation to UserService (validates email, hashes password)
      * 2. Generate access + refresh tokens
@@ -60,7 +69,7 @@ public class AuthService {
      * @return ApiResponse wrapping AuthResponse with both tokens
      */
     @Transactional
-    public ApiResponse<AuthResponse> register(RegisterRequest request) {
+    public ApiResponse<AuthResponse> register(RegisterRequest request, HttpServletRequest  httpRequest) {
 
         // Step 1 - Create user (UserService handles email duplicate check + BCrypt)
         userService.register(request);
@@ -72,8 +81,13 @@ public class AuthService {
 
         // Step 3 - generate tokens and persist refresh token
         AuthResponse tokens = generateAndSaveTokens(user);
-        log.info("New user registered: {}", LogSanitizer.sanitize(request.getEmail()));
+        auditService.logRegister(
+                user.getId(),
+                user.getEmail(),
+                extractIp(httpRequest),
+                extractUserAgent(httpRequest));
 
+        log.info("New user registered: {}", user.getId());
         return ApiResponse.ok("Registration successful", tokens);
     }
 
@@ -82,10 +96,10 @@ public class AuthService {
     /**
      * Generates both tokens and persists the refresh token in DB.
      * Single method for register and login - avoids duplication.
-     *
+     * <p>
      * Why persist the refresh token:
      * Enables real logout - setRefreshToken(null) = session revoked.
-     *
+     * </p>
      * OWASP A07: without DB persistence, logout is just client-side
      */
     private AuthResponse generateAndSaveTokens(User user) {
@@ -103,16 +117,42 @@ public class AuthService {
         );
     }
 
+    /**
+     * Extracts client IP - checks X-Forwarded-For first (behind reverse proxy)
+     * Falls back to remoteAddr for direct connections.
+     * OWASP A09: accurate IP is critical for geographic anomaly detection
+     */
+    private String extractIp(HttpServletRequest request) {
+        if (request == null) return "unknown";
+        String forwarded = request.getHeader("X-Forwarded_For");
+        if (forwarded != null && !forwarded.isBlank()) {
+            // X-Forwarded-For can contain multiple IPs: "client, proxy1, proxy2"
+            // The first one is the real client IP
+            return forwarded.split(",")[0].trim();
+        }
+        return request.getRemoteAddr();
+    }
+
+    /**
+     * Extracts the User-Agent header for device fingerprinting.
+     * Returns "unknown" if not present - never null.
+     */
+    private String extractUserAgent(HttpServletRequest request) {
+        if (request == null) return "unknown";
+        String ua = request.getHeader("User-Agent");
+        return (ua != null && !ua.isBlank()) ? ua : "unknown";
+    }
+
     // --- Login
 
     /**
      * Authenticates credentials and return tokens.
-     *
+     * <p>
      * Why use AuthenticationManager instead of manual password check:
      * AuthenticationManager delegates to UserDetailsServiceImpl
      * With checks: password match + account locked + account active.
      * All these checks happen in one call - no risk of forgetting one.
-     *
+     * </p>
      * OWASP A07:
      * - BadCredentialsException -> same message as "User not found" (prevents user enumeration)
      * - Failed attempts tracked -> account lockout after 3 failures
@@ -122,20 +162,42 @@ public class AuthService {
      * @return ApiResponse wrapping AuthResponse with both tokens
      */
     @Transactional
-    public ApiResponse<AuthResponse> login(LoginRequest request) {
+    public ApiResponse<AuthResponse> login(LoginRequest request, HttpServletRequest httpRequest) {
 
-        // This call triggers:
-        // 1. UserDetailsServiceImpl.loadUserByUsername(email)
-        // 2. BCrypt.matches(plainPassword, storedHash)
-        // 3. AccountLocked / Disabled checks
-        // Throws BadCredentialsException or LockedException on failure
-        // Both are handled by GlobalExceptionHandler -> 401 / 423
-        authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(
+        String ip = extractIp(httpRequest);
+        String userAgent = extractUserAgent(httpRequest);
+
+        try {
+            authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(
+                            request.getEmail(),
+                            request.getPassword()));
+        } catch (LockedException e) {
+            // Account is locked - log as WARNING, not CRITICAL (already handled)
+            userRepository.findByEmail(request.getEmail()).ifPresent(user ->
+                    auditService.logLoginFailure(user.getId(),
+                            request.getEmail(),
+                            "Account locked", extractIp(httpRequest), extractUserAgent(httpRequest)));
+            throw e;
+        } catch (BadCredentialsException e) {
+            // Log failure - check if brute force threshold is reached
+            userRepository.findByEmail(request.getEmail()).ifPresent(user -> {
+                auditService.logLoginFailure(user.getId(),
                         request.getEmail(),
-                        request.getPassword()
-                )
-        );
+                        "Bad credentials", extractIp(httpRequest), extractUserAgent(httpRequest));
+                // OWASP A07: brute force detection
+                // If >= 5 failures in 15 minutes -> CRITICAL alert
+                long recentFailures = auditService.countRecentFailedLogins(user.getId(), 15);
+                if (recentFailures >= 5) {
+                    auditService.logCriticalSecurityEvent(
+                            user.getId(),
+                            String.format("Brute force detected: %s failed logins in 15 minutes", recentFailures),
+
+                            extractIp(httpRequest), extractUserAgent(httpRequest));
+                }
+            });
+            throw e;
+        }
 
         // Only reached if authentication succeeded
         User user = userRepository.findByEmail(request.getEmail())
@@ -148,8 +210,11 @@ public class AuthService {
 
         // Generate tokens and persist refresh token
         AuthResponse tokens = generateAndSaveTokens(user);
-        log.info("Successful login: {}", LogSanitizer.sanitize(request.getEmail()));
+        // OWASP A09: log successful login with IP and device
+        auditService.logLoginSuccess(user.getId(),
+                user.getEmail(), extractIp(httpRequest), extractUserAgent(httpRequest));
 
+        log.info("Successful login: userId={}", user.getId());
         return ApiResponse.ok("Login successful", tokens);
     }
 
@@ -157,13 +222,13 @@ public class AuthService {
 
     /**
      * Issues a new access token using a valid refresh token.
-     *
+     * <p>
      * Why validate refresh token against DB (not just the JWT signature):
      * JWT signature alone tells us the token was legitimately issued.
      * DB validation tells us the token has NOT been revoked (logout happened).
      * Without DB check: logout is cosmetic - the refresh token still works.
      * OWASP A07: stateful refresh token = real revocation capability.
-     *
+     * </p>
      * Flow:
      * 1. Validate JWT signature and expiration of refresh token
      * 2. Check refresh token exists in DB (not revoked by logout)
@@ -191,7 +256,7 @@ public class AuthService {
         // Step 3 - verify token matches DB (not revoked)
         // OWASP A07: token revocation - logout deletes the DB token
         if (!refreshToken.equals(user.getRefreshToken())) {
-            log.warn("Refresh token mismatch for user: {} - possible token reuse after logout", LogSanitizer.sanitize(email));
+            log.warn("Refresh token mismatch for userId= {} - possible token reuse after logout", user.getId());
             throw new InvalidCredentialsException("Refresh token has been revoked");
         }
 
@@ -202,7 +267,7 @@ public class AuthService {
                 newAccessToken,
                 jwtService.getExpirationInSeconds()
         );
-        log.info("Token refreshed for: {}", LogSanitizer.sanitize(email));
+        log.info("Token refreshed for: userI={}", user.getId());
 
         return ApiResponse.ok("Token refreshed", response);
     }
@@ -211,20 +276,20 @@ public class AuthService {
 
     /**
      * Revokes the refresh token by removing it from DB
-     *
+     * <p>
      * Why logout only removes the refresh token (not access token):
      * Access tokens are stateless - they cannot be "revoked" without a blacklist.
      * But they expire in 15 minutes - acceptable window.
      * Removing the refresh token ensures:
      * -> The user cannot silently obtain a new access token
      * -> After 15 min the access token expires and the session truly ends
-     *
+     * </p>
      * OWASP A07: real session termination within 15 minutes maximum.
      *
      * @param email the authentication user's email (from SecurityContext)
      */
     @Transactional
-    public ApiResponse<Void> logout(String email) {
+    public ApiResponse<Void> logout(String email, HttpServletRequest httpRequest) {
 
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new InvalidCredentialsException("User not found"));
@@ -232,7 +297,14 @@ public class AuthService {
         // Remove refresh token from DB - future refresh calls will fail
         user.setRefreshToken(null);
         userRepository.save(user);
-        log.info("User logged out: {}", LogSanitizer.sanitize(email));
+        //OWASP A09: log every logout - session termination must be auditable
+        auditService.logLogout(
+                user.getId(),
+                user.getEmail(),
+                extractIp(httpRequest),
+                extractUserAgent(httpRequest));
+
+        log.info("User logged out: userId={}", user.getId());
 
         return ApiResponse.ok("Logout successful", null);
     }
