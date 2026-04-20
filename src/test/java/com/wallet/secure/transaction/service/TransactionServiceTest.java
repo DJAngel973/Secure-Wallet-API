@@ -1,5 +1,6 @@
 package com.wallet.secure.transaction.service;
 
+import com.wallet.secure.audit.service.AuditService;
 import com.wallet.secure.common.enums.CurrencyCode;
 import com.wallet.secure.common.enums.TransactionStatus;
 import com.wallet.secure.common.enums.TransactionType;
@@ -58,6 +59,7 @@ class TransactionServiceTest {
     @Mock private TransactionRepository transactionRepository;
     @Mock private WalletRepository walletRepository;
     @Mock private WalletService walletService;
+    @Mock private AuditService auditService;
 
     @InjectMocks
     private TransactionService transactionService;
