@@ -204,6 +204,15 @@ public class JwtService {
         return expirationMs / 1000;
     }
 
+    /**
+     * Returns the refresh token lifetime in MILLISECONDS.
+     * Used by SessionService to calculate session.expiresAt.
+     * The session must expire at exactly the same time as the refresh token.
+     */
+    public long getRefreshExpirationMs() {
+        return refreshExpirationMs;
+    }
+
     // ─── Private Helper ───────────────────────────────────────────────────────
 
     /**
