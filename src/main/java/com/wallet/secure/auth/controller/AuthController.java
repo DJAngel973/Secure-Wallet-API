@@ -2,6 +2,7 @@ package com.wallet.secure.auth.controller;
 
 import com.wallet.secure.auth.dto.AuthResponse;
 import com.wallet.secure.auth.dto.LoginRequest;
+import com.wallet.secure.auth.dto.LogoutRequest;
 import com.wallet.secure.auth.dto.RefreshTokenRequest;
 import com.wallet.secure.auth.service.AuthService;
 import com.wallet.secure.common.response.ApiResponse;
@@ -132,7 +133,15 @@ public class AuthController {
      * HTTP 200 — action completed, message in body confirms logout.
      */
     @PostMapping("/logout")
-    public ResponseEntity<ApiResponse<Void>> logout(@AuthenticationPrincipal UserDetails userDetails, HttpServletRequest httpRequest) {
-        return ResponseEntity.ok(authService.logout(userDetails.getUsername(), httpRequest));
+    public ResponseEntity<ApiResponse<Void>> logout(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @Valid @RequestBody LogoutRequest logoutRequest,   // ← nuevo
+            HttpServletRequest httpRequest) {
+
+        return ResponseEntity.ok(
+                authService.logout(
+                        userDetails.getUsername(),
+                        logoutRequest,                         // ← nuevo
+                        httpRequest));
     }
 }

@@ -20,6 +20,7 @@ import org.springframework.security.authentication.LockedException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.wallet.secure.auth.dto.LogoutRequest;
 
 import java.time.Instant;
 
@@ -48,6 +49,7 @@ public class AuthService {
     private final JwtService jwtService;
     private final UserService userService;
     private final AuditService auditService;
+    private final SessionService sessionService;
 
     // --- Register
 
@@ -80,7 +82,7 @@ public class AuthService {
                         "User not found immediately after creation"));
 
         // Step 3 - generate tokens and persist refresh token
-        AuthResponse tokens = generateAndSaveTokens(user);
+        AuthResponse tokens = generateAndSaveTokens(user, extractIp(httpRequest), extractUserAgent(httpRequest));
         auditService.logRegister(
                 user.getId(),
                 user.getEmail(),
@@ -102,13 +104,15 @@ public class AuthService {
      * </p>
      * OWASP A07: without DB persistence, logout is just client-side
      */
-    private AuthResponse generateAndSaveTokens(User user) {
+    private AuthResponse generateAndSaveTokens(User user, String ipAddress, String userAgent) {
         String accessToken = jwtService.generateAccessToken(user.getEmail());
         String refreshToken = jwtService.generateRefreshToken(user.getEmail());
 
         // Persist refresh token - enable revocation on logout
         user.setRefreshToken(refreshToken);
         userRepository.save(user);
+
+        sessionService.createSession(user, refreshToken, ipAddress, userAgent);
 
         return AuthResponse.of(
                 accessToken,
@@ -124,7 +128,7 @@ public class AuthService {
      */
     private String extractIp(HttpServletRequest request) {
         if (request == null) return "unknown";
-        String forwarded = request.getHeader("X-Forwarded_For");
+        String forwarded = request.getHeader("X-Forwarded-For");
         if (forwarded != null && !forwarded.isBlank()) {
             // X-Forwarded-For can contain multiple IPs: "client, proxy1, proxy2"
             // The first one is the real client IP
@@ -209,7 +213,7 @@ public class AuthService {
         user.setLastLoginAt(Instant.now());
 
         // Generate tokens and persist refresh token
-        AuthResponse tokens = generateAndSaveTokens(user);
+        AuthResponse tokens = generateAndSaveTokens(user, ip, userAgent);
         // OWASP A09: log successful login with IP and device
         auditService.logLoginSuccess(user.getId(),
                 user.getEmail(), extractIp(httpRequest), extractUserAgent(httpRequest));
@@ -259,6 +263,7 @@ public class AuthService {
             log.warn("Refresh token mismatch for userId= {} - possible token reuse after logout", user.getId());
             throw new InvalidCredentialsException("Refresh token has been revoked");
         }
+        sessionService.validateSession(refreshToken);
 
         // Step 4 - generate only a new access token
         // Refresh token stays the same - client already has it
@@ -289,7 +294,7 @@ public class AuthService {
      * @param email the authentication user's email (from SecurityContext)
      */
     @Transactional
-    public ApiResponse<Void> logout(String email, HttpServletRequest httpRequest) {
+    public ApiResponse<Void> logout(String email, LogoutRequest logoutRequest, HttpServletRequest httpRequest) {
 
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new InvalidCredentialsException("User not found"));
@@ -297,6 +302,9 @@ public class AuthService {
         // Remove refresh token from DB - future refresh calls will fail
         user.setRefreshToken(null);
         userRepository.save(user);
+
+        sessionService.revokeByToken(logoutRequest.getRefreshToken());
+
         //OWASP A09: log every logout - session termination must be auditable
         auditService.logLogout(
                 user.getId(),
