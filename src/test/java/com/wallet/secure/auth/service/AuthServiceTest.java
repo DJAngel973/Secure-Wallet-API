@@ -3,6 +3,7 @@ package com.wallet.secure.auth.service;
 import com.wallet.secure.audit.service.AuditService;
 import com.wallet.secure.auth.dto.AuthResponse;
 import com.wallet.secure.auth.dto.LoginRequest;
+import com.wallet.secure.auth.dto.LogoutRequest;
 import com.wallet.secure.auth.dto.RefreshTokenRequest;
 import com.wallet.secure.auth.security.JwtService;
 import com.wallet.secure.common.exception.InvalidCredentialsException;
@@ -60,6 +61,7 @@ class AuthServiceTest {
     @Mock private UserService userService;
     @Mock private AuditService auditService;
     @Mock private HttpServletRequest httpRequest;
+    @Mock private SessionService sessionService;
 
     @InjectMocks
     private AuthService authService;
@@ -364,35 +366,34 @@ class AuthServiceTest {
         @Test
         @DisplayName("clears refresh token from DB on logout — OWASP A07")
         void logout_authenticatedUser_clearsRefreshToken() {
-            // GIVEN — user has an active refresh token
+            // GIVEN
+            LogoutRequest logoutRequest = mock(LogoutRequest.class);
+            when(logoutRequest.getRefreshToken()).thenReturn(REFRESH_TOKEN);
             testUser.setRefreshToken(REFRESH_TOKEN);
-            when(userRepository.findByEmail(TEST_EMAIL))
-                    .thenReturn(Optional.of(testUser));
+            when(userRepository.findByEmail(TEST_EMAIL)).thenReturn(Optional.of(testUser));
             when(userRepository.save(any(User.class))).thenReturn(testUser);
+            doNothing().when(sessionService).revokeByToken(anyString());
 
             // WHEN
-            ApiResponse<Void> response = authService.logout(TEST_EMAIL, httpRequest);
+            ApiResponse<Void> response = authService.logout(TEST_EMAIL, logoutRequest, httpRequest);
 
             // THEN
             assertThat(response.isSuccess()).isTrue();
-
-            // Refresh token removed from DB — future /refresh calls will fail
-            // OWASP A07: real server-side logout, not just client-side token deletion
             assertThat(testUser.getRefreshToken()).isNull();
-            verify(userRepository, times(1)).save(testUser);
+            verify(sessionService).revokeByToken(REFRESH_TOKEN);
         }
 
         @Test
         @DisplayName("throws exception when user is not found during logout")
         void logout_userNotFound_throwsException() {
             // GIVEN
+            LogoutRequest logoutRequest = mock(LogoutRequest.class);
             when(userRepository.findByEmail(TEST_EMAIL)).thenReturn(Optional.empty());
 
             // WHEN / THEN
-            assertThatThrownBy(() -> authService.logout(TEST_EMAIL, httpRequest))
+            assertThatThrownBy(() -> authService.logout(TEST_EMAIL, logoutRequest, httpRequest))
                     .isInstanceOf(InvalidCredentialsException.class);
 
-            // Nothing was saved — user didn't exist
             verify(userRepository, never()).save(any());
         }
     }
