@@ -25,6 +25,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import com.wallet.secure.transaction.service.TransactionHistoryService;
 
 import java.math.BigDecimal;
 import java.util.Optional;
@@ -60,6 +61,7 @@ class TransactionServiceTest {
     @Mock private WalletRepository walletRepository;
     @Mock private WalletService walletService;
     @Mock private AuditService auditService;
+    @Mock private TransactionHistoryService historyService;
 
     @InjectMocks
     private TransactionService transactionService;

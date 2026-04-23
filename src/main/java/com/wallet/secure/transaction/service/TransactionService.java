@@ -22,6 +22,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.wallet.secure.transaction.service.TransactionHistoryService;
+import com.wallet.secure.common.enums.TransactionStatus;
 
 import java.util.UUID;
 
@@ -78,6 +80,7 @@ public class TransactionService {
     private final WalletRepository walletRepository;
     private final WalletService walletService;
     private final AuditService auditService;
+    private final TransactionHistoryService historyService;
 
     // --- DEPOSIT
 
@@ -121,10 +124,12 @@ public class TransactionService {
                 .referenceCode(request.getReferenceCode())
                 .build();
         transactionRepository.save(transaction);
+        historyService.record(transaction, null, TransactionStatus.PENDING);
 
         try {
             // Step 2: Mark as PROCESSING - prevents duplicate execution
             transaction.markAsProcessing();
+            historyService.record(transaction, TransactionStatus.PENDING, TransactionStatus.PROCESSING);
 
             // Step 3: Acquire lock on target wallet
             Wallet lockedTarget = walletRepository.findByIdWithLock(targetWallet.getId())
@@ -137,6 +142,7 @@ public class TransactionService {
             // Step 5: Mark as COMPLETED
             transaction.markAsCompleted();
             transactionRepository.save(transaction);
+            historyService.record(transaction, TransactionStatus.PROCESSING, TransactionStatus.COMPLETED);
 
             auditService.logTransactionSuccess(
                     userId,
@@ -159,6 +165,7 @@ public class TransactionService {
             // @Transactional will roll back the balance change
             transaction.markAsFailed();
             transactionRepository.save(transaction);
+            historyService.record(transaction, TransactionStatus.PROCESSING, TransactionStatus.FAILED);
             auditService.logTransactionFailure(
                     userId,
                     TransactionType.DEPOSIT.name(),
@@ -208,9 +215,11 @@ public class TransactionService {
                 .referenceCode(request.getReferenceCode())
                 .build();
         transactionRepository.save(transaction);
+        historyService.record(transaction, null, TransactionStatus.PENDING);
 
         try {
             transaction.markAsProcessing();
+            historyService.record(transaction, TransactionStatus.PENDING, TransactionStatus.PROCESSING);
 
             // Step 3: Acquire lock on source wallet
             Wallet lockedSource = walletRepository.findByIdWithLock(sourceWallet.getId())
@@ -228,6 +237,7 @@ public class TransactionService {
 
             transaction.markAsCompleted();
             transactionRepository.save(transaction);
+            historyService.record(transaction, TransactionStatus.PROCESSING, TransactionStatus.COMPLETED);
 
             auditService.logTransactionSuccess(
                     userId,
@@ -248,6 +258,7 @@ public class TransactionService {
         } catch (Exception e) {
             transaction.markAsFailed();
             transactionRepository.save(transaction);
+            historyService.record(transaction, TransactionStatus.PROCESSING, TransactionStatus.FAILED);
 
             auditService.logTransactionFailure(
                     userId,
@@ -318,9 +329,11 @@ public class TransactionService {
                 .description(request.getDescription())
                 .build();
         transactionRepository.save(transaction);
+        historyService.record(transaction, null, TransactionStatus.PENDING);
 
         try {
             transaction.markAsProcessing();
+            historyService.record(transaction, TransactionStatus.PENDING, TransactionStatus.PROCESSING);
 
             // Step 3: Acquire locks in UUID order — deadlock prevention
             UUID firstLock  = sourceWallet.getId().compareTo(targetWallet.getId()) < 0
@@ -352,6 +365,7 @@ public class TransactionService {
 
             transaction.markAsCompleted();
             transactionRepository.save(transaction);
+            historyService.record(transaction, TransactionStatus.PROCESSING, TransactionStatus.COMPLETED);
 
             auditService.logTransactionSuccess(
                     userId,
@@ -373,6 +387,7 @@ public class TransactionService {
         } catch (Exception e) {
             transaction.markAsFailed();
             transactionRepository.save(transaction);
+            historyService.record(transaction, TransactionStatus.PROCESSING, TransactionStatus.FAILED);
 
             auditService.logTransactionFailure(
                     userId, TransactionType.TRANSFER.name(), e.getMessage(), null, null);
