@@ -1,23 +1,20 @@
 package com.wallet.secure.audit.controller;
 
 import com.wallet.secure.audit.dto.AuditLogResponse;
-import com.wallet.secure.audit.entity.AuditLog;
 import com.wallet.secure.audit.repository.AuditLogRepository;
 import com.wallet.secure.common.enums.AuditAction;
 import com.wallet.secure.common.enums.LogSeverity;
 import com.wallet.secure.common.response.ApiResponse;
-import jakarta.validation.constraints.Size;
-import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.support.PageableExecutionUtils;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -55,6 +52,7 @@ import java.util.UUID;
 @RequestMapping("/audit")
 @RequiredArgsConstructor
 @Log4j2
+@Tag(name = "7. Audit Logs", description = "Security audit trail — ADMIN only")
 @PreAuthorize("hasRole('ADMIN')")
 public class AuditController {
 
