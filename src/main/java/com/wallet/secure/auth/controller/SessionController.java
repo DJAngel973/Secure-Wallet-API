@@ -12,6 +12,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
 import java.util.List;
 import java.util.UUID;
@@ -48,6 +49,7 @@ import java.util.UUID;
 @RequestMapping("/sessions")
 @RequiredArgsConstructor
 @Log4j2
+@Tag(name = "2. Sessions", description = "Multi-device session management — see and revoke active sessions")
 public class SessionController {
 
     private final SessionService sessionService;

@@ -19,6 +19,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
 import java.util.UUID;
 
@@ -47,6 +48,7 @@ import java.util.UUID;
 @RequestMapping("/transactions")
 @RequiredArgsConstructor
 @Log4j2
+@Tag(name = "5. Transactions", description = "Deposit, withdraw and transfer funds between wallets")
 public class TransactionController {
 
     private final TransactionService transactionService;

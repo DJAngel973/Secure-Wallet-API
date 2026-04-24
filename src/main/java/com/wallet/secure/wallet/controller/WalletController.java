@@ -14,6 +14,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
 import java.util.List;
 import java.util.UUID;
@@ -41,6 +42,7 @@ import java.util.UUID;
 @RequestMapping("/wallets")
 @RequiredArgsConstructor
 @Log4j2
+@Tag(name = "4. Wallets", description = "Create and manage multi-currency digital wallets")
 public class WalletController {
 
     private final WalletService walletService;

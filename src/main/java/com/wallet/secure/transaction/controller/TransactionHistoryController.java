@@ -12,6 +12,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
 import java.util.List;
 import java.util.UUID;
@@ -51,6 +52,7 @@ import java.util.UUID;
 @RestController
 @RequiredArgsConstructor
 @Log4j2
+@Tag(name = "6. Transaction History", description = "Complete state timeline for each transaction — PENDING → PROCESSING → COMPLETED/FAILED")
 public class TransactionHistoryController {
 
     private final TransactionHistoryService historyService;
