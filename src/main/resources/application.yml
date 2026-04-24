@@ -134,3 +134,16 @@ app:
     password-require-lowercase: true
     password-require-digit: true
     password-require-special: true
+
+    # SPRINGDOC - OpenAPI / Swagger
+    springdoc:
+      api-docs:
+        path: /v3/api-docs
+      swagger-ui:
+        path: /swagger-ui/index.html
+        operations-sorter: method      # Sort by HTTP method (GET, POST, PUT, DELETE)
+        tags-sorter: alpha             # Sort tags alphabetically
+        display-request-duration: true # Show response time in UI
+        try-it-out-enabled: true       # Enable "Try it out" by default
+      show-actuator: false             # Don't expose actuator in Swagger
+      packages-to-scan: com.wallet.secure  # Only scan our packages
