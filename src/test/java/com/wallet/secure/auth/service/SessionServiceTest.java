@@ -59,8 +59,8 @@ class SessionServiceTest {
     private UUID userId;
     private UUID sessionId;
 
-    private static final String RAW_TOKEN    = "eyJhbGciOiJIUzI1NiJ9.refresh.token";
-    private static final String OTHER_TOKEN  = "eyJhbGciOiJIUzI1NiJ9.other.token";
+    private static final String RAW_TOKEN    = "test.refresh.token.device.A";
+    private static final String OTHER_TOKEN  = "test.refresh.token.device.B";
     private static final String TEST_IP      = "192.168.1.100";
     private static final String TEST_UA      = "Mozilla/5.0 Test";
 
