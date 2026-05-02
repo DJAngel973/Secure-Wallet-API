@@ -227,6 +227,27 @@ public class AuditService {
                 details, ipAddress, userAgent));
     }
 
+    /**
+     * Logs a wallet restoration from SUSPENDED to ACTIVE — ADMIN action.
+     * Called by WalletService.restoreWallet().
+     * WHY this needs its own audit entry: restoring a wallet re-enables all
+     * financial operations on it. That is a security-relevant state change
+     * that must be traceable to the admin who performed it.
+     * OWASP A09: all wallet state changes by admins must be logged.
+     */
+    @Async
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void logWalletRestored(UUID adminId, UUID walletId,
+                                  String ipAddress, String userAgent) {
+        String details = buildDetails(
+                "\"walletId\":\"" + walletId + "\"",
+                "\"adminId\":\"" + adminId + "\"",
+                "\"outcome\":\"SUCCESS\""
+        );
+        save(AuditLog.success(adminId, AuditAction.WALLET_RESTORE, LogSeverity.WARNING,
+                details, ipAddress, userAgent));
+    }
+
     // ─── Security Events
 
     /**

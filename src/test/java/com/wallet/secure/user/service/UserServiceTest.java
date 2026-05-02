@@ -1,7 +1,9 @@
 package com.wallet.secure.user.service;
 
+import com.wallet.secure.audit.service.AuditService;
 import com.wallet.secure.common.exception.EmailAlreadyExistsException;
 import com.wallet.secure.common.exception.InvalidCredentialsException;
+import com.wallet.secure.common.exception.UnauthorizedOperationException;
 import com.wallet.secure.common.exception.UserNotFoundException;
 import com.wallet.secure.common.response.ApiResponse;
 import com.wallet.secure.common.enums.UserRole;
@@ -48,6 +50,9 @@ class UserServiceTest {
 
     @Mock
     private PasswordEncoder passwordEncoder;
+
+    @Mock
+    private AuditService auditService;
 
     @InjectMocks
     private UserService userService;
@@ -221,10 +226,8 @@ class UserServiceTest {
             setField(request, "password", "NewPass12!");
 
             when(userRepository.findById(testUserId)).thenReturn(Optional.of(testUser));
-            // currentPassword matches the stored hash
             when(passwordEncoder.matches("OldPass12!", "$2a$12$hashedPassword"))
                     .thenReturn(true);
-            // new password is different from current
             when(passwordEncoder.matches("NewPass12!", "$2a$12$hashedPassword"))
                     .thenReturn(false);
             when(passwordEncoder.encode("NewPass12!")).thenReturn("$2a$12$newHash");
@@ -237,6 +240,8 @@ class UserServiceTest {
             assertThat(response.isSuccess()).isTrue();
             verify(passwordEncoder).encode("NewPass12!");
             verify(userRepository).save(any(User.class));
+            // OWASP A09: password change MUST generate an audit log entry
+            verify(auditService).logPasswordChange(eq(testUserId), anyString(), isNull(), isNull());
         }
 
         @Test
@@ -289,17 +294,69 @@ class UserServiceTest {
         @Test
         @DisplayName("Should deactivate own account successfully")
         void shouldDeactivateOwnAccount() {
-            // ARRANGE — user deactivates themselves (userId == requesterId)
+            // GIVEN — user deactivates themselves (userId == requesterId)
             when(userRepository.findById(testUserId)).thenReturn(Optional.of(testUser));
             when(userRepository.save(any(User.class))).thenReturn(testUser);
 
-            // ACT
+            // WHEN
             ApiResponse<Void> response = userService.deactivateAccount(testUserId, testUserId);
 
-            // ASSERT
+            // THEN
             assertThat(response.isSuccess()).isTrue();
-            // Verify isActive was set to false
             verify(userRepository).save(argThat(u -> !u.getIsActive()));
+            // OWASP A09: deactivation is a critical event — must be audited
+            verify(auditService).logCriticalSecurityEvent(eq(testUserId), anyString(), isNull(), isNull());
+        }
+
+        @Test
+        @DisplayName("Should allow ADMIN to deactivate another user")
+        void shouldAllowAdminToDeactivateAnotherUser() {
+            // GIVEN — admin (different UUID) deactivates target user
+            UUID adminId = UUID.randomUUID();
+            User adminUser = User.builder()
+                    .email("admin@test.com")
+                    .passwordHash("$2a$12$adminHash")
+                    .role(UserRole.ADMIN)
+                    .build();
+            adminUser.setId(adminId);
+
+            // findById is called twice: once for the target, once for the requester
+            when(userRepository.findById(testUserId)).thenReturn(Optional.of(testUser));
+            when(userRepository.findById(adminId)).thenReturn(Optional.of(adminUser));
+            when(userRepository.save(any(User.class))).thenReturn(testUser);
+
+            // WHEN
+            ApiResponse<Void> response = userService.deactivateAccount(testUserId, adminId);
+
+            // THEN
+            assertThat(response.isSuccess()).isTrue();
+            verify(userRepository).save(argThat(u -> !u.getIsActive()));
+            verify(auditService).logCriticalSecurityEvent(eq(testUserId), anyString(), isNull(), isNull());
+        }
+
+        @Test
+        @DisplayName("Should throw UnauthorizedOperationException when non-ADMIN tries to deactivate another user")
+        void shouldThrowWhenNonAdminTriesToDeactivateAnotherUser() {
+            // GIVEN — a regular USER tries to deactivate someone else's account
+            UUID intruderId = UUID.randomUUID();
+            User intruder = User.builder()
+                    .email("intruder@test.com")
+                    .passwordHash("$2a$12$hash")
+                    .role(UserRole.USER)
+                    .build();
+            intruder.setId(intruderId);
+
+            when(userRepository.findById(testUserId)).thenReturn(Optional.of(testUser));
+            when(userRepository.findById(intruderId)).thenReturn(Optional.of(intruder));
+
+            // WHEN / THEN
+            assertThatThrownBy(() -> userService.deactivateAccount(testUserId, intruderId))
+                    .isInstanceOf(UnauthorizedOperationException.class);
+
+            // Account must NOT have been deactivated
+            verify(userRepository, never()).save(any());
+            // No audit log for a blocked attempt
+            verify(auditService, never()).logCriticalSecurityEvent(any(), any(), any(), any());
         }
     }
 
