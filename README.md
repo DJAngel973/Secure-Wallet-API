@@ -266,12 +266,12 @@ All endpoints return a standard `ApiResponse<T>` envelope:
 ### 1. Register a new user
 
 ```http
-POST /api/v1/users/register
+POST /auth/register
 Content-Type: application/json
 
 {
   "email": "alice@example.com",
-  "password": "ExampleSecureP@ss1",
+  "password": "SecureP@ss1",
   "firstName": "Alice",
   "lastName": "Smith"
 }
@@ -280,7 +280,7 @@ Content-Type: application/json
 ### 2. Login and get tokens
 
 ```http
-POST /api/v1/auth/login
+POST /auth/login
 Content-Type: application/json
 
 {
@@ -292,6 +292,7 @@ Content-Type: application/json
 ```json
 {
   "success": true,
+  "message": "Login successful",
   "data": {
     "accessToken": "ExampleekeypracticeyJhbGc...",
     "refreshToken": "ExampleekeypracticeyJhbGcNiJ9...",
@@ -301,12 +302,19 @@ Content-Type: application/json
 }
 ```
 
-> Use the `accessToken` as a Bearer token in the `Authorization` header for all subsequent requests.
+> Use the `accessToken` as a Bearer token in the `Authorization` header for all protected requests.
 
-### 3. Create a wallet
+### 3. Get your own profile
 
 ```http
-POST /api/v1/wallets
+GET /users/me
+Authorization: Bearer <accessToken>
+```
+
+### 4. Create a wallet
+
+```http
+POST /wallets
 Authorization: Bearer <accessToken>
 Content-Type: application/json
 
@@ -315,10 +323,10 @@ Content-Type: application/json
 }
 ```
 
-### 4. Deposit funds
+### 5. Deposit funds
 
 ```http
-POST /api/v1/transactions/deposit
+POST /transactions/deposit
 Authorization: Bearer <accessToken>
 Content-Type: application/json
 
@@ -329,11 +337,14 @@ Content-Type: application/json
 }
 ```
 
-### 5. Transfer between wallets
+### 6. Transfer between wallets
+
+> Amounts above **$100** require a valid TOTP code. Add the `X-2FA-Code` header with the 6-digit code from your authenticator app.
 
 ```http
-POST /api/v1/transactions/transfer
+POST /transactions/transfer
 Authorization: Bearer <accessToken>
+X-2FA-Code: 123456
 Content-Type: application/json
 
 {
@@ -344,12 +355,17 @@ Content-Type: application/json
 }
 ```
 
-> **Transfers above $100 require a valid TOTP code.** Include the `X-2FA-Code` header with a 6-digit code from your authenticator app.
-
-### 6. Refresh your access token
+### 7. Get transaction history for a wallet
 
 ```http
-POST /api/v1/auth/refresh
+GET /transactions/wallet/ExampleekeypracticeyJhbGcafa6
+Authorization: Bearer <accessToken>
+```
+
+### 8. Refresh your access token
+
+```http
+POST /auth/refresh
 Content-Type: application/json
 
 {
@@ -357,10 +373,10 @@ Content-Type: application/json
 }
 ```
 
-### 7. Logout
+### 9. Logout
 
 ```http
-POST /api/v1/auth/logout
+POST /auth/logout
 Authorization: Bearer <accessToken>
 Content-Type: application/json
 
