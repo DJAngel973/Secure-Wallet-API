@@ -123,7 +123,7 @@ app:
   transaction:
     max-amount: 10000.00          # Maximum amount per transaction
     daily-limit: 50000.00         # Daily limit per user
-    require-2fa-amount: 5000.00   # Requires 2FA for larger amounts
+    require-2fa-amount: 100.00    # Requires 2FA for amounts above $100 (ADR-005)
   
   # Security settings
   security:
