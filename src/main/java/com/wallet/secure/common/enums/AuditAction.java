@@ -25,6 +25,7 @@ public enum AuditAction {
     WALLET_CREATE,
     WALLET_SUSPEND,
     WALLET_CLOSE,
+    WALLET_RESTORE,
 
     // Transaction lifecycle
     TRANSACTION_CREATE,

@@ -1,10 +1,13 @@
 package com.wallet.secure.user.service;
 
+import com.wallet.secure.audit.service.AuditService;
+import com.wallet.secure.common.enums.UserRole;
 import com.wallet.secure.common.exception.EmailAlreadyExistsException;
 import com.wallet.secure.common.exception.InvalidCredentialsException;
 import com.wallet.secure.common.exception.UnauthorizedOperationException;
 import com.wallet.secure.common.exception.UserNotFoundException;
 import com.wallet.secure.common.response.ApiResponse;
+import com.wallet.secure.common.util.LogSanitizer;
 import com.wallet.secure.user.dto.RegisterRequest;
 import com.wallet.secure.user.dto.UpdateProfileRequest;
 import com.wallet.secure.user.dto.UserResponse;
@@ -15,7 +18,6 @@ import lombok.extern.log4j.Log4j2;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import com.wallet.secure.common.util.LogSanitizer;
 
 import java.util.UUID;
 
@@ -42,6 +44,7 @@ public class UserService {
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final AuditService auditService;
 
     // ─── Registration ─────────────────────────────────────────────────────────
 
@@ -149,6 +152,8 @@ public class UserService {
             user.setPasswordHash(passwordEncoder.encode(request.getPassword()));
             log.info("Password changed: userId={}", userId);
             updated = true;
+            // OWASP A09: password change is a high-sensitivity event — always audited
+            auditService.logPasswordChange(userId, user.getEmail(), null, null);
         }
 
         if (!updated) {
@@ -177,18 +182,32 @@ public class UserService {
     public ApiResponse<Void> deactivateAccount(UUID userId, UUID requesterId) {
         User user = findUserById(userId);
 
-        // OWASP A01: only the user or an ADMIN can deactivate an account
-        // Fine-grained check — controller also uses @PreAuthorize
-        if (!userId.equals(requesterId)) {
-            log.warn("Unauthorized deactivation attempt: requesterId={} tried userId={}",
-                    requesterId, userId);
-            throw new UnauthorizedOperationException("Not authorized to deactivate this account");
+        // OWASP A01: only the account owner OR an ADMIN can deactivate an account.
+        // WHY we also load the requester: comparing UUIDs alone is not enough —
+        // an ADMIN will always have a different UUID than the target user.
+        // We must verify the requester's role to allow cross-user deactivation.
+        boolean isSelf = userId.equals(requesterId);
+        if (!isSelf) {
+            User requester = findUserById(requesterId);
+            boolean isAdmin = UserRole.ADMIN.equals(requester.getRole());
+            if (!isAdmin) {
+                log.warn("Unauthorized deactivation attempt: requesterId={} tried userId={}",
+                        requesterId, userId);
+                throw new UnauthorizedOperationException("Not authorized to deactivate this account");
+            }
         }
 
         user.setIsActive(false);
         userRepository.save(user);
 
-        log.info("Account deactivated: userId={}", userId);
+        // OWASP A09: account deactivation is a high-sensitivity operation — always audited
+        auditService.logCriticalSecurityEvent(
+                userId,
+                "Account deactivated by " + (userId.equals(requesterId) ? "owner" : "ADMIN requesterId=" + requesterId),
+                null, null
+        );
+
+        log.info("Account deactivated: userId={} by requesterId={}", userId, requesterId);
         return ApiResponse.ok("Account deactivated successfully");
     }
 

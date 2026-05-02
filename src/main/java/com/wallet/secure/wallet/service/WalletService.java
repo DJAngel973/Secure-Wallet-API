@@ -239,6 +239,10 @@ public class WalletService {
         wallet.setStatus(WalletStatus.ACTIVE);
         Wallet saved = walletRepository.save(wallet);
 
+        // OWASP A09: wallet restoration re-enables all financial operations on it —
+        // this is a security-relevant state change that must be traceable to the admin.
+        auditService.logWalletRestored(wallet.getUser().getId(), walletId, null, null);
+
         log.warn("Wallet restored to ACTIVE: walletId={}", walletId);
 
         return ApiResponse.ok("Wallet restored", WalletResponse.fromEntity(saved));
