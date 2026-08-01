@@ -47,6 +47,7 @@ Thumbs.db
 *.truststore
 secrets/
 credentials/
+.atl
 
 # Application configs
 application-local.yml
