@@ -37,7 +37,7 @@ jobs:
       - name: Run tests
         run: ./mvnw test --no-transfer-progress
         env:
-          # The test use H2 (application-test.yml), they do not need PostgreSQL
+          # The tests use H2 (application-test.yml); they do not need PostgreSQL
           # Los tests usan H2 (application-test.yml), no necesitan PostgreSQL
           SPRING_PROFILES_ACTIVE: test
 
@@ -52,7 +52,7 @@ jobs:
   # ═══════════════════════════════════════════════════════════
   # JOB 2: OWASP Dependency Check
   # Uses official GitHub Action — no H2 race condition bug
-  # ══════���════════════════════════════════════════════════════
+  # ═══════════════════════════════════════════════════════════
   owasp-check:
     name: OWASP Dependency Check
     runs-on: ubuntu-latest

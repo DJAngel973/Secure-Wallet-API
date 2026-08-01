@@ -15,8 +15,8 @@ A REST API for a digital savings wallet where users can:
 - Register and manage their profile
 - Create savings wallets in multiple currencies (USD, EUR, COP, MXN, ARS)
 - Deposit, withdraw, and transfer funds between wallets
-- Track every operation through a full audit trail
-- Authenticate with dual-token JWT and optional two-factor authentication
+- Track authentication, wallet, and transaction events through an audit trail
+- Authenticate with access and refresh JWT tokens
 
 The idea came from wanting to understand the moving parts of a real savings wallet — not just the happy path, but edge cases, concurrency, token rotation, and what happens when things go wrong.
 
@@ -28,7 +28,6 @@ The idea came from wanting to understand the moving parts of a real savings wall
 - Registration, profile updates, and soft-delete accounts
 - Role-based access: `USER`, `ADMIN`, `MANAGER`
 - Account lockout after repeated failed login attempts
-- Two-Factor Authentication via TOTP (compatible with Google Authenticator, Authy)
 
 ### Multi-Currency Savings Wallets
 - One wallet per user per currency
@@ -44,8 +43,6 @@ The idea came from wanting to understand the moving parts of a real savings wall
 | Transfer | Move funds between two wallets in the system |
 | History | State-change log per transaction |
 
-- Configurable limits: max per transaction, max per day
-- 2FA threshold: operations above a configurable amount require a TOTP code
 - Pessimistic locking on balance reads to prevent race conditions
 - Unique reference code per transaction
 
@@ -53,7 +50,7 @@ The idea came from wanting to understand the moving parts of a real savings wall
 - Dual-token JWT: Access Token (short-lived) + Refresh Token (longer-lived with rotation)
 - Refresh token stored as SHA-256 hash — real revocation on logout
 - UUID primary keys on all entities (no sequential IDs)
-- Stack traces never reach the client — all errors go through a centralized handler
+- The default configuration prevents stack traces and internal exception details from reaching clients
 - Input validation on every endpoint
 
 ### Audit Trail
@@ -126,13 +123,15 @@ docker compose up -d
 ### Run tests
 
 ```bash
-./mvnw test                              # All unit tests (uses H2 in-memory, no DB needed)
+./mvnw test                                # Complete automated test suite
 ./mvnw test -Dtest=TransactionServiceTest  # Single test class
 ```
 
+The suite contains Mockito unit tests for the business services and a small Spring Security integration test using H2. PostgreSQL is not required to run the test suite.
+
 ### Interactive API docs
 
-Once running: [http://localhost:8080/swagger-ui.html](http://localhost:8080/swagger-ui.html)
+Once running: [http://localhost:8080/swagger-ui/index.html](http://localhost:8080/swagger-ui/index.html)
 
 All responses follow a standard wrapper:
 
@@ -146,13 +145,13 @@ All responses follow a standard wrapper:
 
 ---
 
-**Note:** endpoints listed in Features above have not been tested end-to-end yet. The Swagger UI at `http://localhost:8080/swagger-ui.html` lists all available endpoints for exploration when the app is running.
+**Note:** endpoints listed in Features above have not been tested end-to-end yet. The Swagger UI at `http://localhost:8080/swagger-ui/index.html` lists all available endpoints for exploration when the app is running.
 
 ---
 
 ## Database
 
-PostgreSQL 16 with schema managed through versioned SQL scripts — Hibernate validates but never creates or modifies tables.
+PostgreSQL 16 with schema managed through numbered SQL scripts. The default published configuration uses `ddl-auto: validate`, so Hibernate validates the schema without creating or modifying it.
 
 | # | Script | Purpose |
 |---|--------|---------|
@@ -190,10 +189,10 @@ This project uses the OWASP Top 10 as a guide for security decisions. Here is wh
 
 | Job | When | What |
 |-----|------|------|
-| Build & Test | Every push / PR | Compile + unit tests (H2 in-memory) |
-| OWASP Dependency Check | Every push / PR | CVE scan |
-| CodeQL Analysis | Every push / PR + weekly | Static security analysis |
-| Package | Merge to main | Production JAR |
+| Build & Test | Push to `main` / PR targeting `main` | Compile and run the automated test suite |
+| OWASP Dependency Check | Push to `main` / PR targeting `main` | Scan dependencies for known vulnerabilities |
+| CodeQL Analysis | Push to `main`, PR targeting `main`, and weekly | Static security analysis |
+| Package | Push to `main` | Generate and upload the application JAR |
 
 ---
 
@@ -202,6 +201,8 @@ This project uses the OWASP Top 10 as a guide for security decisions. Here is wh
 - Review and test all endpoints end-to-end
 - Polish existing code sections marked for improvement
 - Postman collection for easier API exploration
+- TOTP-based two-factor authentication for high-value transactions
+- Enforcement of configurable per-transaction and daily limits
 
 ---
 
