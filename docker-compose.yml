@@ -34,6 +34,32 @@ services:
           cpus: '0.5'
           memory: 256M
 
+  wallet-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: secure-wallet-api
+    restart: no
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+      # POSTGRES_HOST=postgres because inside the Docker network
+      # services resolve by service name, not localhost.
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: ${POSTGRES_PORT}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      # JWT from .env
+      JWT_SECRET: ${JWT_SECRET}
+      SERVER_PORT: ${SERVER_PORT:-8080}
+    ports:
+      - "${SERVER_PORT:-8080}:${SERVER_PORT:-8080}"
+    networks:
+      - wallet-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   pgadmin:
     image: dpage/pgadmin4:latest
     container_name: secure-wallet-pgadmin

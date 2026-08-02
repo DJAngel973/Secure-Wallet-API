@@ -1,0 +1,65 @@
+# .dockerignore — files excluded from Docker build context
+
+# Maven / Gradle build output (compiled on container, not copied)
+target/
+!.mvn/wrapper/
+
+# IDE files
+.idea/
+*.iml
+.vscode/
+.eclipse/
+*.swp
+*.swo
+*~
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Environment and secrets
+.env
+.env.*
+*.env
+!.env.example
+
+# Documentation (not needed inside the image)
+*.md
+README.md
+CONTEXT.md
+DECISIONS.md
+SECURITY.md
+AGENTS.md
+HELP.md
+CONTRIBUTING.md
+CODE_OF_CONDUCT.md
+LICENSE
+
+# Logs (generated at runtime)
+logs/
+*.log
+
+# Database scripts (only used by PostgreSQL container, not the app)
+database/
+
+# Docker files (not needed inside the image)
+docker-compose.yml
+docker-compose.*.yml
+Dockerfile
+.dockerignore
+
+# Scripts
+script/
+
+# CI/CD
+.github/
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Dependency vulnerability reports
+owasp-suppressions.xml
+dependency-check-report.*
+target/dependency-check-*/
