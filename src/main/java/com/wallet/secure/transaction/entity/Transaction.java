@@ -6,6 +6,8 @@ import com.wallet.secure.common.enums.TransactionType;
 import com.wallet.secure.wallet.entity.Wallet;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
@@ -154,6 +156,7 @@ public class Transaction {
      * OWASP A09: stores request context for fraud detection and audit.
      * Example: {"ip": "192.168.1.1", "device": "Mozilla/5.0..."}
      */
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "metadata", columnDefinition = "jsonb")
     private String metadata;
 
