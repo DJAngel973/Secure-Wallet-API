@@ -4,6 +4,8 @@ import com.wallet.secure.common.enums.AuditAction;
 import com.wallet.secure.common.enums.LogSeverity;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
@@ -96,6 +98,7 @@ public class AuditLog {
      * OWASP A09: details MUST NOT contain passwords, tokens, or raw PII.
      * Safe to store: email (for identification), UUIDs, amounts, outcomes.
      */
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "details", columnDefinition = "jsonb")
     private String details;
 
