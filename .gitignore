@@ -113,3 +113,5 @@ yarn-error.log*
 # Virtual environments (if using Python for scripts)
 venv/
 .venv/
+
+QA.md
