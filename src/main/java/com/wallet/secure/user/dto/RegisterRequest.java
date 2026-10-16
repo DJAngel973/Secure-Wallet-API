@@ -31,7 +31,7 @@ public class RegisterRequest {
      * OWASP A07: enforce strong password policy at API entry point.
      */
     @NotBlank(message = "Password is required")
-    @Size(min = 12, max = 72, message = "Password must be between 8 and 72 characters")
+    @Size(min = 12, max = 72, message = "Password must be between 12 and 72 characters")
     @Pattern(
             regexp = "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[@$!%*?&_.#^])[A-Za-z\\d@$!%*?&_.#^]{12,}$",
             message = "Password must contain uppercase, lowercase, number and special character"
