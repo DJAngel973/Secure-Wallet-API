@@ -257,3 +257,9 @@ Before opening a PR, verify:
 - [ ] OWASP comments on security decisions
 - [ ] `@Schema` on new DTOs for Swagger
 - [ ] `@Tag` on new controllers for Swagger grouping
+
+## Git Safety Rules
+- Do not create commits unless the user explicitly authorizes the commit in the current message.
+- Do not run `git push`, `git merge`, rebase, revert, cherry-pick, or create pull requests unless explicitly.
+- Reading git history, status, and diffs is allowed.
+- Before any Git write operation, explain the exact command and wait for confirmation.
