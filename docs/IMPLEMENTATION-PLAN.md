@@ -70,9 +70,9 @@ The former `database/07-seed.sql` created an administrator with publicly known c
 
 **Acceptance criteria**
 
-- [x] No default administrator is created by SQL initialization path.
+- [x] No default administrator is created by SQL initialization path (verified with a temporary clean PostgreSQL container).
 - [x] No public administrator password remains in the repository's database scripts.
-- [ ] PostgreSQL initializes correctly using Docker Compose.
+- [x] PostgreSQL initializes correctly using Docker Compose and the current schema scripts.
 - [ ] Existing tests continue to pass.
 
 ### SEC-002 — Add controlled one-time bootstrap for the first administrator
