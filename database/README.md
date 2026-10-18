@@ -1,7 +1,8 @@
 # Database — Secure Wallet API
 
 PostgreSQL 16 schema for a secure digital wallet system.
-All scripts run automatically on first Docker startup via `docker-entrypoint-initdb.d`, in numbered order.
+Schema scripts run automatically on first Docker startup via `docker-entrypoint-initdb.d`, in numbered order.
+No development seed data is executed automatically. Test fixtures must be provisioned separately.
 
 ---
 
@@ -15,7 +16,7 @@ All scripts run automatically on first Docker startup via `docker-entrypoint-ini
 | `04-index.sql` | 4th | Performance indexes (partial, composite, GIN) |
 | `05-triggers.sql` | 5th | Auto-update timestamps, balance validation, audit triggers |
 | `06-functions.sql` | 6th | ACID transaction processor, session cleanup |
-| `07-seed.sql` | 7th | Development test data only |
+| — | — | No seed data; administrators are provisioned by the application bootstrap procedure |
 
 ---
 
