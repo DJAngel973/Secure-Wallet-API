@@ -79,6 +79,17 @@ jwt:
   header: Authorization
   prefix: Bearer
 
+# FIRST ADMIN BOOTSTRAP
+# Disabled by default. Enable only through private environment variables.
+# ADMIN_BOOTSTRAP_ENABLED=true
+# ADMIN_BOOTSTRAP_EMAIL=admin@example.test
+# ADMIN_BOOTSTRAP_PASSWORD=<private value>
+admin:
+  bootstrap:
+    enabled: ${ADMIN_BOOTSTRAP_ENABLED:false}
+    email: ${ADMIN_BOOTSTRAP_EMAIL:}
+    password: ${ADMIN_BOOTSTRAP_PASSWORD:}
+
 # LOGGING
 logging:
   level:
