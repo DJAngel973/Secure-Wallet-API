@@ -12,12 +12,21 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.boot.DefaultApplicationArguments;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import jakarta.validation.Validation;
+import jakarta.validation.Validator;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
+/**
+ * Unit tests for the first-admin provisioning boundary.
+ *
+ * <p>Mockito is used instead of a Spring context so these tests verify the
+ * service decisions in isolation: whether persistence and BCrypt are called,
+ * not Hibernate or PostgreSQL behavior.</p>
+ */
 @ExtendWith(MockitoExtension.class)
 class AdminBootstrapServiceTest {
 
@@ -29,14 +38,17 @@ class AdminBootstrapServiceTest {
 
     private AdminBootstrapProperties properties;
     private AdminBootstrapService service;
+    private Validator validator;
 
     @BeforeEach
     void setUp() {
         properties = new AdminBootstrapProperties();
-        service = new AdminBootstrapService(properties, userRepository, passwordEncoder);
+        validator = Validation.buildDefaultValidatorFactory().getValidator();
+        service = new AdminBootstrapService(properties, userRepository, passwordEncoder, validator);
     }
 
     @Test
+    /** Disabled is the safe default for normal application starts. */
     void disabledBootstrapDoesNotQueryOrCreateUser() throws Exception {
         service.run(new DefaultApplicationArguments());
 
@@ -44,6 +56,7 @@ class AdminBootstrapServiceTest {
     }
 
     @Test
+    /** A valid bootstrap creates a verified ADMIN and never stores plaintext. */
     void validBootstrapCreatesVerifiedAdminWithEncodedPassword() throws Exception {
         properties.setEnabled(true);
         properties.setEmail("admin@example.test");
@@ -65,6 +78,7 @@ class AdminBootstrapServiceTest {
     }
 
     @Test
+    /** Idempotency prevents a restart from creating or replacing another ADMIN. */
     void existingAdminPreventsSecondAdmin() throws Exception {
         properties.setEnabled(true);
         properties.setEmail("admin@example.test");
@@ -78,6 +92,7 @@ class AdminBootstrapServiceTest {
     }
 
     @Test
+    /** Invalid input fails before repository or encoder interaction. */
     void invalidPasswordFailsWithoutPersistingOrLoggingSecret() {
         properties.setEnabled(true);
         properties.setEmail("admin@example.test");
@@ -85,7 +100,7 @@ class AdminBootstrapServiceTest {
 
         assertThatThrownBy(() -> service.run(new DefaultApplicationArguments()))
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessage("Admin bootstrap password does not meet minimum requirements");
+                .hasMessage("Admin bootstrap configuration is invalid");
         verifyNoInteractions(userRepository, passwordEncoder);
     }
 }
