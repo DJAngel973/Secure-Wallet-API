@@ -51,6 +51,10 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       # JWT from .env
       JWT_SECRET: ${JWT_SECRET}
+      # First ADMIN bootstrap; disabled unless explicitly enabled in .env.
+      ADMIN_BOOTSTRAP_ENABLED: ${ADMIN_BOOTSTRAP_ENABLED:-false}
+      ADMIN_BOOTSTRAP_EMAIL: ${ADMIN_BOOTSTRAP_EMAIL:-}
+      ADMIN_BOOTSTRAP_PASSWORD: ${ADMIN_BOOTSTRAP_PASSWORD:-}
       SERVER_PORT: ${SERVER_PORT:-8080}
     ports:
       - "${SERVER_PORT:-8080}:${SERVER_PORT:-8080}"
