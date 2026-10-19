@@ -140,7 +140,7 @@ app:
   security:
     max-login-attempts: 5         # Login attempts before lockout
     lockout-duration-minutes: 30  # Lockout time
-    password-min-length: 8
+    password-min-length: 12
     password-require-uppercase: true
     password-require-lowercase: true
     password-require-digit: true

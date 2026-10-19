@@ -4,6 +4,7 @@ import com.wallet.secure.common.enums.UserRole;
 import com.wallet.secure.config.AdminBootstrapProperties;
 import com.wallet.secure.user.entity.User;
 import com.wallet.secure.user.repository.UserRepository;
+import jakarta.validation.Validator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.boot.ApplicationArguments;
@@ -11,8 +12,6 @@ import org.springframework.boot.ApplicationRunner;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.regex.Pattern;
 
 /**
  * Provisions only the first ADMIN, when explicitly enabled.
@@ -26,13 +25,23 @@ import java.util.regex.Pattern;
 @Log4j2
 public class AdminBootstrapService implements ApplicationRunner {
 
-    private static final Pattern EMAIL_PATTERN =
-            Pattern.compile("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$");
-
     private final AdminBootstrapProperties properties;
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final Validator validator;
 
+    /**
+     * Runs once after Spring has created the application context.
+     *
+     * <p>This is provisioning, not public registration: it is an operational
+     * entry point used to create the first business administrator. Keeping it
+     * as an {@link ApplicationRunner} means it is not reachable through HTTP
+     * or Postman.</p>
+     *
+     * <p>The operation is idempotent. Re-starting the application with the
+     * same variables does not change the existing administrator because the
+     * role existence check happens before persistence.</p>
+     */
     @Override
     @Transactional
     public void run(ApplicationArguments args) {
@@ -64,12 +73,16 @@ public class AdminBootstrapService implements ApplicationRunner {
         log.info("Initial administrator provisioned successfully");
     }
 
+    /**
+     * Validates only non-secret properties and password policy requirements.
+     *
+     * <p>Exception messages intentionally describe the violated rule without
+     * including the supplied password (OWASP A05/A09: avoid secret leakage in
+     * logs and startup diagnostics).</p>
+     */
     private void validateInput() {
-        if (properties.getEmail() == null || !EMAIL_PATTERN.matcher(properties.getEmail()).matches()) {
-            throw new IllegalStateException("Admin bootstrap email is invalid");
-        }
-        if (properties.getPassword() == null || properties.getPassword().length() < 8) {
-            throw new IllegalStateException("Admin bootstrap password does not meet minimum requirements");
+        if (!validator.validate(properties).isEmpty()) {
+            throw new IllegalStateException("Admin bootstrap configuration is invalid");
         }
     }
 }
