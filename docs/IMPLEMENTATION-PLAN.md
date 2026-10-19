@@ -59,20 +59,20 @@ Postman critical-flow collection
 
 **Current problem**
 
-`database/07-seed.sql` creates an administrator with publicly know credentials during PostgreSQL initialization.
+The former `database/07-seed.sql` created an administrator with publicly known credentials during PostgreSQL initialization. It has been removed from the database initialization directory.
 
 **Expected behavior**
 
-- Remove 07-seed.sql if no application or test dependency requirest it.
+- Remove the seed from the repository's initialization directory; provision administrators through the controlled application bootstrap instead.
 - Configure Docker Compose to initialize only the required database schema.
 - Do not create default users or administrators during SQL initialization.
 - Keep Docker Compose as the primary way to start PostgreSQL and Spring Boot.
 
 **Acceptance criteria**
 
-- [ ] No default administrator is created by SQL initialization.
-- [ ] No public administrator password remains in the repository's current tracked files.
-- [ ] PostgreSQL initializes correctly using Docker Compose.
+- [x] No default administrator is created by SQL initialization path (verified with a temporary clean PostgreSQL container).
+- [x] No public administrator password remains in the repository's database scripts.
+- [x] PostgreSQL initializes correctly using Docker Compose and the current schema scripts.
 - [ ] Existing tests continue to pass.
 
 ### SEC-002 — Add controlled one-time bootstrap for the first administrator

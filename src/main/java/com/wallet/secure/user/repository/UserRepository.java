@@ -47,6 +47,12 @@ public interface UserRepository extends JpaRepository<User, UUID> {
      */
     boolean existsByEmail(String email);
 
+    /**
+     * Used by the one-time admin bootstrap to enforce a single initial ADMIN.
+     * OWASP A01: privileged role provisioning is not exposed through public registration.
+     */
+    boolean existsByRole(com.wallet.secure.common.enums.UserRole role);
+
     // ─── Security Queries ─────────────────────────────────────────────────────
 
     /**
