@@ -160,6 +160,11 @@ void methodName_condition_expectation() {
 - `@Transactional` behavior → requires Spring context
 - Hibernate queries → requires DB
 
+### Verification Gate
+- After every code, SQL, configuration, or test change, run `./scripts/test.sh` before reporting the work as verified.
+- Before recommending a commit or push, report the test result. Do not recommend either when the test gate fails.
+- If the change affects Docker runtime configuration, also verify the relevant Docker Compose startup path.
+
 ---
 
 ## Security Rules — NEVER Violate
