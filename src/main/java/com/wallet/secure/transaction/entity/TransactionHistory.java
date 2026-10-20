@@ -4,6 +4,8 @@ import com.wallet.secure.common.enums.TransactionStatus;
 import com.wallet.secure.user.entity.User;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
@@ -74,6 +76,7 @@ public class TransactionHistory {
      * Example: null → PENDING (initial creation)
      *          PENDING → PROCESSING (started execution)
      */
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     @Enumerated(EnumType.STRING)
     @Column(name = "old_status")
     private TransactionStatus oldStatus;
@@ -83,6 +86,7 @@ public class TransactionHistory {
      * DB constraint: NOT NULL
      * DB CHECK: old_status IS DISTINCT FROM new_status (no no-op entries)
      */
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     @Enumerated(EnumType.STRING)
     @Column(name = "new_status", nullable = false)
     private TransactionStatus newStatus;

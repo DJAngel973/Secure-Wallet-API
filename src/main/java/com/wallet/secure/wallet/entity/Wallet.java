@@ -5,6 +5,8 @@ import com.wallet.secure.common.enums.WalletStatus;
 import com.wallet.secure.user.entity.User;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
@@ -76,6 +78,7 @@ public class Wallet {
      * USD, EUR, COP, MXN, ARS
      * A user can have one wallet per currency - enforced by DB UNIQUE constraint
      */
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     @Enumerated(EnumType.STRING)
     @Column(name = "currency", nullable = false, length = 10)
     private CurrencyCode currency;
@@ -92,6 +95,7 @@ public class Wallet {
      * SUSPENDED -> ACTIVE (admin restores)
      * ACTIVE/SUSPENDED -> CLOSED (user request or admin - irreversible)
      */
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 20)
     @Builder.Default

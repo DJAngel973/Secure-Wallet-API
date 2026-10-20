@@ -9,7 +9,10 @@ spring:
   jpa:
     database-platform: org.hibernate.dialect.H2Dialect
     hibernate:
-      ddl-auto: create-drop  # Create/drop schema on each test
+      # SecurityConfigTest only exercises the web-security filter chain.
+      # H2 cannot generate PostgreSQL NAMED_ENUM columns; production schema is
+      # validated against PostgreSQL, so no schema generation is needed here.
+      ddl-auto: none
     show-sql: true
     properties:
       hibernate:
