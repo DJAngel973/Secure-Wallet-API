@@ -66,6 +66,7 @@ public class AuditLog {
      * The specific action that occurred.
      * Maps to PostgreSQL ENUM audit_action (02-types.sql).
      */
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     @Enumerated(EnumType.STRING)
     @Column(name = "action", nullable = false, length = 50)
     private AuditAction action;
@@ -75,6 +76,7 @@ public class AuditLog {
      * Maps to PostgreSQL ENUM log_severity (02-types.sql).
      * INFO / WARNING / ERROR / CRITICAL
      */
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     @Enumerated(EnumType.STRING)
     @Column(name = "severity_level", nullable = false, length = 20)
     @Builder.Default

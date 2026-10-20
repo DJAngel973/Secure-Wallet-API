@@ -103,6 +103,7 @@ public class Transaction {
      * Must match the currency of both wallets involved
      * Cross-currency transactions are NOT supported - validated in service
      */
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     @Enumerated(EnumType.STRING)
     @Column(name = "currency", nullable = false, length = 10)
     private CurrencyCode currency;
@@ -113,6 +114,7 @@ public class Transaction {
      * TRANSFER, DEPOSIT, or WITHDRAWAL
      * Determines which wallet fields are required (null rules above)
      */
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     @Enumerated(EnumType.STRING)
     @Column(name = "transaction_type", nullable = false, length = 20)
     private TransactionType transactionType;
@@ -127,6 +129,7 @@ public class Transaction {
      * A transaction stuck in PENDING or PROCESSING -> needs manual review.
      * Immediate COMPLETED would hide failed partial operations
      */
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 20)
     @Builder.Default
