@@ -60,10 +60,10 @@ class AdminBootstrapServiceTest {
     void validBootstrapCreatesVerifiedAdminWithEncodedPassword() throws Exception {
         properties.setEnabled(true);
         properties.setEmail("admin@example.test");
-        properties.setPassword("StrongPass1!");
+        properties.setPassword("Strong/Pass1!");
         when(userRepository.existsByRole(UserRole.ADMIN)).thenReturn(false);
         when(userRepository.existsByEmail("admin@example.test")).thenReturn(false);
-        when(passwordEncoder.encode("StrongPass1!")).thenReturn("$2a$12$encoded");
+        when(passwordEncoder.encode("Strong/Pass1!")).thenReturn("$2a$12$encoded");
 
         service.run(new DefaultApplicationArguments());
 
@@ -74,7 +74,7 @@ class AdminBootstrapServiceTest {
         assertThat(saved.getEmail()).isEqualTo("admin@example.test");
         assertThat(saved.getPasswordHash()).isEqualTo("$2a$12$encoded");
         assertThat(saved.getEmailVerified()).isTrue();
-        verify(passwordEncoder).encode("StrongPass1!");
+        verify(passwordEncoder).encode("Strong/Pass1!");
     }
 
     @Test
@@ -82,7 +82,7 @@ class AdminBootstrapServiceTest {
     void existingAdminPreventsSecondAdmin() throws Exception {
         properties.setEnabled(true);
         properties.setEmail("admin@example.test");
-        properties.setPassword("StrongPass1!");
+        properties.setPassword("Strong/Pass1!");
         when(userRepository.existsByRole(UserRole.ADMIN)).thenReturn(true);
 
         service.run(new DefaultApplicationArguments());
