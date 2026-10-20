@@ -3,6 +3,8 @@ package com.wallet.secure.auth.entity;
 import com.wallet.secure.user.entity.User;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
@@ -87,6 +89,7 @@ public class Session {
      * OWASP A07: enables geographic anomaly detection.
      * Example: session created in Colombia, refresh from Russia → suspicious.
      */
+    @JdbcTypeCode(SqlTypes.INET)
     @Column(name = "ip_address")
     private String ipAddress;
 

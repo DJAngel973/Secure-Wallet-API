@@ -33,7 +33,8 @@ public class RegisterRequest {
     @NotBlank(message = "Password is required")
     @Size(min = 12, max = 72, message = "Password must be between 12 and 72 characters")
     @Pattern(
-            regexp = "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[@$!%*?&_.#^])[A-Za-z\\d@$!%*?&_.#^]{12,}$",
+            // OWASP: do not restrict the symbols a password manager may generate.
+            regexp = "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[^A-Za-z0-9\\s])\\S{12,72}$",
             message = "Password must contain uppercase, lowercase, number and special character"
     )
     private String password;
