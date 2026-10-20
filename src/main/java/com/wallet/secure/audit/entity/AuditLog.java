@@ -108,6 +108,7 @@ public class AuditLog {
      * Supports both IPv4 and IPv6.
      * OWASP A09: essential for geographic anomaly detection and forensics.
      */
+    @JdbcTypeCode(SqlTypes.INET)
     @Column(name = "ip_address")
     private String ipAddress;
 
