@@ -73,7 +73,7 @@ The former `database/07-seed.sql` created an administrator with publicly known c
 - [x] No default administrator is created by SQL initialization path (verified with a temporary clean PostgreSQL container).
 - [x] No public administrator password remains in the repository's database scripts.
 - [x] PostgreSQL initializes correctly using Docker Compose and the current schema scripts.
-- [ ] Existing tests continue to pass.
+- [x] Existing tests continue to pass (111 tests, 0 failures, 0 errors; verified 2026-10-20).
 
 ### SEC-002 — Add controlled one-time bootstrap for the first administrator
 
@@ -83,7 +83,7 @@ The former `database/07-seed.sql` created an administrator with publicly known c
 
 **Current problem**
 
-The first administrator is currently supplied only by the public development seed. No controlled bootstrap exists.
+The former public seed is no longer used and a controlled bootstrap now exists. Runtime verification confirms that it creates only the first administrator, skips creation when an administrator already exists, and fails closed for invalid configuration. SEC-002 cannot yet be closed: the public registration flow currently rolls back when its audit write races the uncommitted user insert (see the verification note below).
 
 **Expected behavior**
 
@@ -103,11 +103,17 @@ The first administrator is currently supplied only by the public development see
 
 **Acceptance criteria**
 
-- [ ] First startup with valid bootstrap input creates one BCrypt-hashed `ADMIN`.
-- [ ] A second startup creates no additional administrator and changes no existing credentials.
-- [ ] Missing or invalid bootstrap input fails safely without exposing secrets.
+- [x] First startup with valid bootstrap input creates one BCrypt-hashed `ADMIN`.
+- [x] A second startup creates no additional administrator and changes no existing credentials (verified against the Docker PostgreSQL database; count remained one).
+- [ ] Missing or invalid bootstrap input fails safely without exposing secrets. Invalid input was verified to stop startup with the generic message `Admin bootstrap configuration is invalid`; the missing-input case remains to be verified.
 - [ ] Bootstrap secrets are absent from logs, API responses, Git history, and persisted configuration.
-- [ ] `POST /auth/register` cannot create an `ADMIN`, including when the JSON includes a `role` field.
+- [ ] `POST /auth/register` cannot create an `ADMIN`, including when the JSON includes a `role` field. The DTO has no writable role field and the attempted request rolled back without persisting a user or an administrator, but the endpoint returned `500` because its audit record referenced an uncommitted user. Fix and then repeat this functional test before accepting the criterion.
+
+**Verification note — 2026-10-20**
+
+- `ADMIN_BOOTSTRAP_ENABLED=true` with an existing administrator logged that bootstrap was skipped; the database still contained exactly one `ADMIN`.
+- Invalid bootstrap password caused startup to fail with `Admin bootstrap configuration is invalid`, and the database still contained exactly one `ADMIN`; the application was then restored with bootstrap disabled.
+- A real `POST /auth/register` request containing `"role":"ADMIN"` persisted no user. The cause was not role assignment: `AuditService.logRegister()` attempted to create `audit_logs.user_id` before the enclosing registration transaction committed, violating `audit_logs_user_id_fkey`. This is a P0 functional/audit defect that must be fixed before the public-registration requirement can be accepted.
 
 ### SEC-003 — Remove original refresh-token storage from the user record
 
