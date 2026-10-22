@@ -83,6 +83,12 @@ public class AuthService {
 
         // Step 3 - generate tokens and persist refresh token
         AuthResponse tokens = generateAndSaveTokens(user, extractIp(httpRequest), extractUserAgent(httpRequest));
+
+        // The registration audit row references users.id through a foreign key.
+        // Flush the pending user insert in THIS transaction before adding the audit row.
+        // OWASP A09: registration and its audit record must commit atomically.
+        userRepository.flush();
+
         auditService.logRegister(
                 user.getId(),
                 user.getEmail(),

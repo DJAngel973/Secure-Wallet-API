@@ -19,6 +19,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -101,7 +102,7 @@ class AuthServiceTest {
         lenient().when(httpRequest.getRemoteAddr()).thenReturn("127.0.0.1");
         lenient().when(httpRequest.getHeader("User-Agent")).thenReturn("JUnit-Test-Agent");
 
-        // AuditService stubs — lenient because audit calls are fire-and-forget
+        // AuditService stubs — lenient because most tests do not reach audit calls.
         // We don't assert on audit calls in most tests — they have their own tests
         lenient().doNothing().when(auditService)
                 .logLoginSuccess(any(), anyString(), anyString(), anyString());
@@ -145,6 +146,13 @@ class AuthServiceTest {
 
             // Refresh token was persisted in DB — enables future revocation on logout
             verify(userRepository, times(1)).save(any(User.class));
+
+            // Registration audit references users.id: the user must be flushed
+            // before AuditService joins the same transaction (OWASP A09).
+            InOrder persistenceOrder = inOrder(userRepository, auditService);
+            persistenceOrder.verify(userRepository).flush();
+            persistenceOrder.verify(auditService).logRegister(
+                    eq(testUser.getId()), eq(TEST_EMAIL), anyString(), anyString());
         }
 
         @Test
