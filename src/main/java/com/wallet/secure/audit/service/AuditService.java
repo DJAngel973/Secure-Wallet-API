@@ -111,9 +111,18 @@ public class AuditService {
     /**
      * Logs a new user registration.
      * Called by AuthService.register() after user is created.
+     *
+     * <p>Unlike background audit events, registration audit joins the
+     * registration transaction. The audit row has a foreign key to the newly
+     * created user, so a separate transaction cannot read that user until the
+     * outer transaction commits. AuthService flushes the user before calling
+     * this method; both records then commit or roll back together.</p>
+     *
+     * <p>OWASP A09: a successfully registered account must have its audit
+     * record. For this particular event, consistency is more important than
+     * fire-and-forget execution.</p>
      */
-    @Async
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    @Transactional(propagation = Propagation.MANDATORY)
     public void logRegister(UUID userId, String email, String ipAddress, String userAgent) {
         String details = buildDetails(
                 "\"email\":\"" + email + "\"",
