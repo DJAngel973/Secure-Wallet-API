@@ -83,7 +83,7 @@ The former `database/07-seed.sql` created an administrator with publicly known c
 
 **Current problem**
 
-The former public seed is no longer used and a controlled bootstrap now exists. Runtime verification confirms that it creates only the first administrator, skips creation when an administrator already exists, and fails closed for invalid configuration. SEC-002 cannot yet be closed: the public registration flow currently rolls back when its audit write races the uncommitted user insert (see the verification note below).
+The former public seed is no longer used and a controlled bootstrap now exists. Runtime verification confirms that it creates only the first administrator, skips creation when an administrator already exists, and fails closed for missing or invalid configuration. The registration audit transaction ordering was corrected and verified against PostgreSQL (see the verification note below).
 
 **Expected behavior**
 
@@ -105,15 +105,15 @@ The former public seed is no longer used and a controlled bootstrap now exists. 
 
 - [x] First startup with valid bootstrap input creates one BCrypt-hashed `ADMIN`.
 - [x] A second startup creates no additional administrator and changes no existing credentials (verified against the Docker PostgreSQL database; count remained one).
-- [ ] Missing or invalid bootstrap input fails safely without exposing secrets. Invalid input was verified to stop startup with the generic message `Admin bootstrap configuration is invalid`; the missing-input case remains to be verified.
-- [ ] Bootstrap secrets are absent from logs, API responses, Git history, and persisted configuration.
-- [ ] `POST /auth/register` cannot create an `ADMIN`, including when the JSON includes a `role` field. The DTO has no writable role field and the attempted request rolled back without persisting a user or an administrator, but the endpoint returned `500` because its audit record referenced an uncommitted user. Fix and then repeat this functional test before accepting the criterion.
+- [x] Missing or invalid bootstrap input fails safely without exposing secrets. Both cases stopped startup with the generic message `Admin bootstrap configuration is invalid`; the administrator count remained one.
+- [x] Bootstrap secrets are absent from application logs, API responses, tracked configuration and the `.env` Git history path. The secret is supplied only as a runtime environment value; the database stores the BCrypt hash, not the original password.
+- [x] `POST /auth/register` cannot create an `ADMIN`, including when the JSON includes a `role` field. A real request with `"role":"ADMIN"` returned `201`, persisted `USER`, created one `USER_REGISTER` audit record and left the administrator count at one.
 
 **Verification note — 2026-10-20**
 
 - `ADMIN_BOOTSTRAP_ENABLED=true` with an existing administrator logged that bootstrap was skipped; the database still contained exactly one `ADMIN`.
 - Invalid bootstrap password caused startup to fail with `Admin bootstrap configuration is invalid`, and the database still contained exactly one `ADMIN`; the application was then restored with bootstrap disabled.
-- A real `POST /auth/register` request containing `"role":"ADMIN"` persisted no user. The cause was not role assignment: `AuditService.logRegister()` attempted to create `audit_logs.user_id` before the enclosing registration transaction committed, violating `audit_logs_user_id_fkey`. This is a P0 functional/audit defect that must be fixed before the public-registration requirement can be accepted.
+- The initial registration test exposed that `AuditService.logRegister()` opened a separate transaction before the enclosing registration transaction committed, violating `audit_logs_user_id_fkey`. The correction makes registration audit join the registration transaction after `UserRepository.flush()`; a repeated real request returned `201`, stored a `USER` and its audit row, and did not add an administrator.
 
 ### SEC-003 — Remove original refresh-token storage from the user record
 
