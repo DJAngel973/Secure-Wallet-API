@@ -1,17 +1,13 @@
--- Migration: add refresh_token column to users table
--- Date: 2026-03-28
--- Reason: Support JWT refresh token invalidation on logout (OWASP A07)
+-- Migration: remove raw refresh_token from users
+-- Date: 2026-10-25
+-- Reason: user_sessions.token_hash is the single source of truth. A raw JWT
+--          must never be stored because a database disclosure could reuse it.
+-- OWASP A02/A07: revoke sessions by SHA-256 hash, not by a reusable token.
+
+DROP INDEX IF EXISTS idx_users_refresh_token;
 
 ALTER TABLE users
-    ADD COLUMN IF NOT EXISTS refresh_token VARCHAR(512);
-
--- Index for fast lookup on refresh token validation
-CREATE INDEX IF NOT EXISTS idx_users_refresh_token
-    ON users(refresh_token)
-    WHERE refresh_token IS NOT NULL;
-
-COMMENT ON COLUMN users.refresh_token IS
-    'Active refresh token. NULL = logged out. Invalidated on logout.';
+    DROP COLUMN IF EXISTS refresh_token;
 
 -- Migration: add WALLET_RESTORE to audit_action enum
 -- Date: 2026-05-02

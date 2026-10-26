@@ -192,6 +192,22 @@ class SessionServiceTest {
         }
 
         @Test
+        @DisplayName("rejects a stored token hash when presented as a refresh token — OWASP A02")
+        void validateSession_storedHashCannotBeUsedAsRefreshToken() {
+            // GIVEN — an attacker obtained the database value, not the raw JWT.
+            String storedHash = sessionService.hashToken(RAW_TOKEN);
+            String lookupHash = sessionService.hashToken(storedHash);
+            when(sessionRepository.findByTokenHash(lookupHash)).thenReturn(Optional.empty());
+
+            // WHEN / THEN — validateSession hashes the supplied value again.
+            assertThatThrownBy(() -> sessionService.validateSession(storedHash))
+                    .isInstanceOf(InvalidCredentialsException.class)
+                    .hasMessageContaining("revoked");
+
+            verify(sessionRepository).findByTokenHash(lookupHash);
+        }
+
+        @Test
         @DisplayName("throws when session is revoked — user already logged out")
         void validateSession_revokedSession_throwsException() {
             // GIVEN — user called logout → session was marked revoked
