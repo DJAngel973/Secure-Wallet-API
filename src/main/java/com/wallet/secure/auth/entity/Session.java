@@ -32,8 +32,7 @@ import java.util.UUID;
  * A SHA-256 hash of a JWT cannot be reversed to obtain the token.
  * OWASP A02: sensitive tokens never stored in plain text in DB.
  *
- * WHY this table exists alongside refreshToken in User entity:
- * User.refreshToken → simple single-device session (current behavior)
+ * This table is the single source of truth for refresh-token sessions:
  * user_sessions     → multi-device session management
  *   → "Show me all devices where I'm logged in"
  *   → "Log out from my phone but keep my laptop session"

@@ -64,7 +64,7 @@ public class AuthService {
      * Flow:
      * 1. Delegate account creation to UserService (validates email, hashes password)
      * 2. Generate access + refresh tokens
-     * 3. Save refresh token in DB
+     * 3. Store only the SHA-256 refresh-token hash in user_sessions
      * 4. Return AuthResponse
      *
      * @param request DTO with email and password (validated by @Valid at controller)
@@ -102,11 +102,11 @@ public class AuthService {
     // --- Private Helpers
 
     /**
-     * Generates both tokens and persists the refresh token in DB.
+     * Generates both tokens and stores only the refresh-token hash in user_sessions.
      * Single method for register and login - avoids duplication.
      * <p>
-     * Why persist the refresh token:
-     * Enables real logout - setRefreshToken(null) = session revoked.
+     * Why persist a session hash:
+     * Enables real logout - the matching user_sessions row is revoked.
      * </p>
      * OWASP A07: without DB persistence, logout is just client-side
      */
@@ -114,10 +114,7 @@ public class AuthService {
         String accessToken = jwtService.generateAccessToken(user.getEmail());
         String refreshToken = jwtService.generateRefreshToken(user.getEmail());
 
-        // Persist refresh token - enable revocation on logout
-        user.setRefreshToken(refreshToken);
-        userRepository.save(user);
-
+        // OWASP A02: SessionService persists SHA-256(refreshToken), never the raw JWT.
         sessionService.createSession(user, refreshToken, ipAddress, userAgent);
 
         return AuthResponse.of(
@@ -241,7 +238,7 @@ public class AuthService {
      * </p>
      * Flow:
      * 1. Validate JWT signature and expiration of refresh token
-     * 2. Check refresh token exists in DB (not revoked by logout)
+     * 2. Check the refresh-token hash exists in user_sessions (not revoked by logout)
      * 3. Generate new access token
      * 4. Return new access token (refresh token stays the same)
      *
@@ -263,13 +260,14 @@ public class AuthService {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new InvalidCredentialsException("Invalid refresh token"));
 
-        // Step 3 - verify token matches DB (not revoked)
-        // OWASP A07: token revocation - logout deletes the DB token
-        if (!refreshToken.equals(user.getRefreshToken())) {
-            log.warn("Refresh token mismatch for userId= {} - possible token reuse after logout", user.getId());
-            throw new InvalidCredentialsException("Refresh token has been revoked");
+        // Step 3 - user_sessions is the only revocation store. Its hash must
+        // belong to the same user named in the signed refresh JWT.
+        // OWASP A02/A07: never store or compare a raw reusable refresh token.
+        var session = sessionService.validateSession(refreshToken);
+        if (!session.getUser().getId().equals(user.getId())) {
+            log.warn("Refresh token session ownership mismatch for userId={}", user.getId());
+            throw new InvalidCredentialsException("Invalid refresh token");
         }
-        sessionService.validateSession(refreshToken);
 
         // Step 4 - generate only a new access token
         // Refresh token stays the same - client already has it
@@ -286,12 +284,12 @@ public class AuthService {
     // --- Logout
 
     /**
-     * Revokes the refresh token by removing it from DB
+     * Revokes the refresh-token session by marking its hash as revoked.
      * <p>
-     * Why logout only removes the refresh token (not access token):
+     * Why logout revokes only the refresh-token session (not the access token):
      * Access tokens are stateless - they cannot be "revoked" without a blacklist.
      * But they expire in 15 minutes - acceptable window.
-     * Removing the refresh token ensures:
+     * Revoking the refresh-token session ensures:
      * -> The user cannot silently obtain a new access token
      * -> After 15 min the access token expires and the session truly ends
      * </p>
@@ -305,10 +303,8 @@ public class AuthService {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new InvalidCredentialsException("User not found"));
 
-        // Remove refresh token from DB - future refresh calls will fail
-        user.setRefreshToken(null);
-        userRepository.save(user);
-
+        // SessionService hashes the presented token, finds its session and revokes it.
+        // No raw refresh JWT is persisted in users.
         sessionService.revokeByToken(logoutRequest.getRefreshToken());
 
         //OWASP A09: log every logout - session termination must be auditable

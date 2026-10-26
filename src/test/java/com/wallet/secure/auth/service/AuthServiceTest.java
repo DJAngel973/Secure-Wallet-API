@@ -5,6 +5,7 @@ import com.wallet.secure.auth.dto.AuthResponse;
 import com.wallet.secure.auth.dto.LoginRequest;
 import com.wallet.secure.auth.dto.LogoutRequest;
 import com.wallet.secure.auth.dto.RefreshTokenRequest;
+import com.wallet.secure.auth.entity.Session;
 import com.wallet.secure.auth.security.JwtService;
 import com.wallet.secure.common.exception.InvalidCredentialsException;
 import com.wallet.secure.common.response.ApiResponse;
@@ -29,6 +30,7 @@ import org.springframework.security.core.Authentication;
 
 import java.util.Optional;
 import java.util.UUID;
+import java.time.Instant;
 
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -134,7 +136,6 @@ class AuthServiceTest {
             // After registration, AuthService loads the user by email to generate tokens
             when(userRepository.findByEmail(TEST_EMAIL))
                     .thenReturn(Optional.of(testUser));
-            when(userRepository.save(any(User.class))).thenReturn(testUser);
 
             // WHEN
             ApiResponse<AuthResponse> response = authService.register(request, httpRequest);
@@ -144,8 +145,9 @@ class AuthServiceTest {
             assertThat(response.getData().getAccessToken()).isEqualTo(ACCESS_TOKEN);
             assertThat(response.getData().getRefreshToken()).isEqualTo(REFRESH_TOKEN);
 
-            // Refresh token was persisted in DB — enables future revocation on logout
-            verify(userRepository, times(1)).save(any(User.class));
+            // The raw token is not stored on User; SessionService stores only its SHA-256 hash.
+            verify(userRepository, never()).save(any(User.class));
+            verify(sessionService).createSession(eq(testUser), eq(REFRESH_TOKEN), anyString(), anyString());
 
             // Registration audit references users.id: the user must be flushed
             // before AuditService joins the same transaction (OWASP A09).
@@ -192,7 +194,6 @@ class AuthServiceTest {
 
             when(userRepository.findByEmail(TEST_EMAIL))
                     .thenReturn(Optional.of(testUser));
-            when(userRepository.save(any(User.class))).thenReturn(testUser);
 
             // WHEN
             ApiResponse<AuthResponse> response = authService.login(request, httpRequest);
@@ -217,7 +218,6 @@ class AuthServiceTest {
                     .thenReturn(mock(Authentication.class));
             when(userRepository.findByEmail(TEST_EMAIL))
                     .thenReturn(Optional.of(testUser));
-            when(userRepository.save(any(User.class))).thenReturn(testUser);
 
             // WHEN
             authService.login(request, httpRequest);
@@ -241,7 +241,6 @@ class AuthServiceTest {
                     .thenReturn(mock(Authentication.class));
             when(userRepository.findByEmail(TEST_EMAIL))
                     .thenReturn(Optional.of(testUser));
-            when(userRepository.save(any(User.class))).thenReturn(testUser);
 
             // WHEN
             authService.login(request, httpRequest);
@@ -285,8 +284,6 @@ class AuthServiceTest {
         @DisplayName("returns new access token with valid refresh token")
         void refresh_validToken_returnsNewAccessToken() {
             // GIVEN
-            testUser.setRefreshToken(REFRESH_TOKEN);
-
             RefreshTokenRequest request = mock(RefreshTokenRequest.class);
             when(request.getRefreshToken()).thenReturn(REFRESH_TOKEN);
 
@@ -294,6 +291,8 @@ class AuthServiceTest {
             when(jwtService.extractEmail(REFRESH_TOKEN)).thenReturn(TEST_EMAIL);
             when(userRepository.findByEmail(TEST_EMAIL))
                     .thenReturn(Optional.of(testUser));
+            when(sessionService.validateSession(REFRESH_TOKEN))
+                    .thenReturn(activeSessionFor(testUser));
 
             String newAccessToken = "new.access.jwt.token";
             when(jwtService.generateAccessToken(TEST_EMAIL)).thenReturn(newAccessToken);
@@ -326,8 +325,7 @@ class AuthServiceTest {
         @Test
         @DisplayName("throws exception when refresh token was revoked after logout — OWASP A07")
         void refresh_revokedToken_throwsException() {
-            // GIVEN — user logged out → refreshToken in DB is null
-            testUser.setRefreshToken(null);
+            // GIVEN — user logged out → the session hash is marked revoked
 
             RefreshTokenRequest request = mock(RefreshTokenRequest.class);
             when(request.getRefreshToken()).thenReturn(REFRESH_TOKEN);
@@ -335,6 +333,8 @@ class AuthServiceTest {
             when(jwtService.extractEmail(REFRESH_TOKEN)).thenReturn(TEST_EMAIL);
             when(userRepository.findByEmail(TEST_EMAIL))
                     .thenReturn(Optional.of(testUser));
+            doThrow(new InvalidCredentialsException("Session has been revoked or expired"))
+                    .when(sessionService).validateSession(REFRESH_TOKEN);
 
             // WHEN / THEN
             // OWASP A07: token revoked after logout — cannot be reused
@@ -344,11 +344,10 @@ class AuthServiceTest {
         }
 
         @Test
-        @DisplayName("throws exception when token does not match DB — token reuse attack")
+        @DisplayName("throws exception when token session belongs to another user — OWASP A01")
         void refresh_tokenMismatch_throwsException() {
-            // GIVEN — attacker uses an old refresh token
-            // the user already has a new one in DB (token rotation scenario)
-            testUser.setRefreshToken("different.token.in.db");
+            // GIVEN — a valid token hash must still belong to the JWT subject.
+            User anotherUser = User.builder().id(UUID.randomUUID()).email("other@test.com").build();
 
             RefreshTokenRequest request = mock(RefreshTokenRequest.class);
             when(request.getRefreshToken()).thenReturn(REFRESH_TOKEN);
@@ -356,12 +355,14 @@ class AuthServiceTest {
             when(jwtService.extractEmail(REFRESH_TOKEN)).thenReturn(TEST_EMAIL);
             when(userRepository.findByEmail(TEST_EMAIL))
                     .thenReturn(Optional.of(testUser));
+            when(sessionService.validateSession(REFRESH_TOKEN))
+                    .thenReturn(activeSessionFor(anotherUser));
 
             // WHEN / THEN
             // OWASP A07: detects stale token reuse attempt
             assertThatThrownBy(() -> authService.refresh(request))
                     .isInstanceOf(InvalidCredentialsException.class)
-                    .hasMessageContaining("revoked");
+                    .hasMessageContaining("Invalid refresh token");
         }
     }
 
@@ -372,14 +373,12 @@ class AuthServiceTest {
     class LogoutTests {
 
         @Test
-        @DisplayName("clears refresh token from DB on logout — OWASP A07")
-        void logout_authenticatedUser_clearsRefreshToken() {
+        @DisplayName("revokes hashed refresh-token session on logout — OWASP A07")
+        void logout_authenticatedUser_revokesSession() {
             // GIVEN
             LogoutRequest logoutRequest = mock(LogoutRequest.class);
             when(logoutRequest.getRefreshToken()).thenReturn(REFRESH_TOKEN);
-            testUser.setRefreshToken(REFRESH_TOKEN);
             when(userRepository.findByEmail(TEST_EMAIL)).thenReturn(Optional.of(testUser));
-            when(userRepository.save(any(User.class))).thenReturn(testUser);
             doNothing().when(sessionService).revokeByToken(anyString());
 
             // WHEN
@@ -387,8 +386,8 @@ class AuthServiceTest {
 
             // THEN
             assertThat(response.isSuccess()).isTrue();
-            assertThat(testUser.getRefreshToken()).isNull();
             verify(sessionService).revokeByToken(REFRESH_TOKEN);
+            verify(userRepository, never()).save(any(User.class));
         }
 
         @Test
@@ -404,5 +403,13 @@ class AuthServiceTest {
 
             verify(userRepository, never()).save(any());
         }
+    }
+
+    private Session activeSessionFor(User user) {
+        return Session.builder()
+                .user(user)
+                .tokenHash("a".repeat(64))
+                .expiresAt(Instant.now().plusSeconds(60))
+                .build();
     }
 }

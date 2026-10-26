@@ -123,7 +123,7 @@ The former public seed is no longer used and a controlled bootstrap now exists. 
 
 **Current problem**
 
-`SessionService` stores a SHA-256 token hash in `user_sessions`, but `AuthService` also assigns the original refresh JWT to `User.refreshToken`. This contradicts the requirement that reusable tokens are not stored directly.
+`SessionService` stores a SHA-256 token hash in `user_sessions`, but `AuthService` also assigned the original refresh JWT to `User.refreshToken`. This duplicate raw-token store was removed; `user_sessions` is now the only refresh-session source of truth.
 
 **Expected behavior**
 
@@ -143,10 +143,17 @@ The former public seed is no longer used and a controlled bootstrap now exists. 
 
 **Acceptance criteria**
 
-- [ ] No database column stores the original refresh JWT.
-- [ ] Login, refresh, logout, single-session revocation, and all-session revocation still work.
-- [ ] Tests prove that a stored session value cannot be sent as a refresh token.
-- [ ] Schema migration preserves or explicitly invalidates existing sessions safely.
+- [x] No database column stores the original refresh JWT.
+- [x] Login, refresh, logout, single-session revocation, and all-session revocation still work.
+- [x] Tests prove that a stored session value cannot be sent as a refresh token.
+- [x] Schema migration preserves existing sessions safely.
+
+**Verification note — 2026-10-25**
+
+- The migration removed `users.refresh_token` and its index while preserving the three existing `user_sessions` rows.
+- A real local flow returned `201` on registration, `200` on refresh, `200` on logout and `401` when the revoked refresh token was reused.
+- The resulting `user_sessions.token_hash` value had 64 characters (SHA-256 hex), and the raw-token column was absent.
+- `./scripts/test.sh` passed: 112 tests, 0 failures and 0 errors.
 
 ### SEC-004 — Implement and verify refresh-token rotation
 
