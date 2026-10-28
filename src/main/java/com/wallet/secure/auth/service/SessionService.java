@@ -138,6 +138,29 @@ public class SessionService {
         return session;
     }
 
+    /**
+     * Atomically consumes an active refresh-token session and creates its replacement.
+     * The pessimistic row lock makes the old token single-use even under concurrent
+     * requests: the second request waits, then observes the revoked row and fails.
+     * OWASP A07: refresh-token rotation limits replay after token theft.
+     */
+    @Transactional
+    public Session rotateSession(User expectedUser, String currentRefreshToken,
+                                 String replacementRefreshToken, String ipAddress, String userAgent) {
+        Session current = sessionRepository.findByTokenHashWithLock(hashToken(currentRefreshToken))
+                .orElseThrow(() -> new InvalidCredentialsException("Session not found or already revoked"));
+
+        if (!current.getUser().getId().equals(expectedUser.getId()) || !current.isActive()) {
+            throw new InvalidCredentialsException("Session has been revoked or expired");
+        }
+
+        current.revokeNow();
+        sessionRepository.save(current);
+
+        // The replacement is saved in the same transaction as the revocation.
+        return createSession(expectedUser, replacementRefreshToken, ipAddress, userAgent);
+    }
+
     // ─── Session Revocation
 
     /**

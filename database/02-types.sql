@@ -27,6 +27,7 @@ COMMENT ON TYPE log_severity IS 'INFO=normal, WARNING=alert, ERROR=failed, CRITI
 CREATE TYPE audit_action AS ENUM (
     'USER_LOGIN',
     'USER_LOGOUT',
+    'TOKEN_REFRESH',
     'USER_REGISTER',
     'USER_UPDATE',
     'USER_DELETE',

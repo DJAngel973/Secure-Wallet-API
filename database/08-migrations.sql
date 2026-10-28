@@ -16,3 +16,8 @@ ALTER TABLE users
 --         Using ALTER TYPE ... ADD VALUE because PostgreSQL enums are append-only.
 
 ALTER TYPE audit_action ADD VALUE IF NOT EXISTS 'WALLET_RESTORE';
+
+-- Migration: audit refresh-token rotation and replay attempts
+-- Date: 2026-10-27
+-- OWASP A07/A09: a consumed refresh token presented again is a security signal.
+ALTER TYPE audit_action ADD VALUE IF NOT EXISTS 'TOKEN_REFRESH';

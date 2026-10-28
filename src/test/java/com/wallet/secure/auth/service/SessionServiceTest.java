@@ -237,6 +237,48 @@ class SessionServiceTest {
         }
     }
 
+    // ─── rotateSession()
+
+    @Nested
+    @DisplayName("rotateSession()")
+    class RotateSessionTests {
+
+        @Test
+        @DisplayName("consumes old session and saves a hashed replacement — OWASP A07")
+        void rotateSession_activeSession_revokesAndCreatesReplacement() {
+            // GIVEN
+            Session current = buildActiveSession(RAW_TOKEN);
+            when(sessionRepository.findByTokenHashWithLock(sessionService.hashToken(RAW_TOKEN)))
+                    .thenReturn(Optional.of(current));
+            when(sessionRepository.save(any(Session.class))).thenAnswer(invocation -> invocation.getArgument(0));
+            when(jwtService.getRefreshExpirationMs()).thenReturn(86_400_000L);
+
+            // WHEN
+            sessionService.rotateSession(testUser, RAW_TOKEN, OTHER_TOKEN, TEST_IP, TEST_UA);
+
+            // THEN
+            assertThat(current.isRevoked()).isTrue();
+            verify(sessionRepository).save(current);
+            verify(sessionRepository).save(argThat(session ->
+                    session.getTokenHash().equals(sessionService.hashToken(OTHER_TOKEN))));
+        }
+
+        @Test
+        @DisplayName("rejects consumed session while holding its lock — OWASP A07")
+        void rotateSession_revokedSession_throwsException() {
+            // GIVEN
+            Session consumed = buildRevokedSession(RAW_TOKEN);
+            when(sessionRepository.findByTokenHashWithLock(sessionService.hashToken(RAW_TOKEN)))
+                    .thenReturn(Optional.of(consumed));
+
+            // WHEN / THEN
+            assertThatThrownBy(() -> sessionService.rotateSession(testUser, RAW_TOKEN, OTHER_TOKEN, TEST_IP, TEST_UA))
+                    .isInstanceOf(InvalidCredentialsException.class)
+                    .hasMessageContaining("revoked or expired");
+            verify(sessionRepository, never()).save(any());
+        }
+    }
+
     // ─── revokeByToken()
 
     @Nested

@@ -17,6 +17,7 @@ public enum AuditAction {
     // User lifecycle
     USER_LOGIN,
     USER_LOGOUT,
+    TOKEN_REFRESH,
     USER_REGISTER,
     USER_UPDATE,
     USER_DELETE,
