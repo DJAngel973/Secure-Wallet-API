@@ -105,9 +105,10 @@ public class AuthController {
      * On failure → InvalidCredentialsException → GlobalExceptionHandler → 401.
      */
     @PostMapping("/refresh")
-    public ResponseEntity<ApiResponse<AuthResponse>> refresh(@Valid @RequestBody RefreshTokenRequest request) {
+    public ResponseEntity<ApiResponse<AuthResponse>> refresh(@Valid @RequestBody RefreshTokenRequest request,
+                                                              HttpServletRequest httpRequest) {
 
-        ApiResponse<AuthResponse> response = authService.refresh(request);
+        ApiResponse<AuthResponse> response = authService.refresh(request, httpRequest);
 
         return ResponseEntity.ok(response);
     }

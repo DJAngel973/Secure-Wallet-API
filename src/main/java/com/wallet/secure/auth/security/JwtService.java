@@ -13,6 +13,7 @@ import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Date;
+import java.util.UUID;
 
 /**
  * Handles all JWT operations: generate, validate, extract claims.
@@ -121,6 +122,9 @@ public class JwtService {
                 .issuedAt(Date.from(now))           // when it was created
                 .expiration(Date.from(expiry))      // when it expires
                 .claim("type", tokenType)           // "access" or "refresh"
+                // OWASP A07: iat has second precision in JWT. A random ID prevents
+                // two refresh tokens for the same user in that second being identical.
+                .id(UUID.randomUUID().toString())
                 .signWith(signingKey)               // HMAC-SHA256 signature
                 .compact();                         // serialize to string
     }

@@ -238,15 +238,15 @@ public class AuthService {
      * </p>
      * Flow:
      * 1. Validate JWT signature and expiration of refresh token
-     * 2. Check the refresh-token hash exists in user_sessions (not revoked by logout)
-     * 3. Generate new access token
-     * 4. Return new access token (refresh token stays the same)
+     * 2. Lock and consume the matching active session
+     * 3. Generate and store a replacement refresh token in the same transaction
+     * 4. Return both replacements; the old token is now invalid
      *
      * @param request DTO with refreshToken
      * @return ApiResponse with new access token (refresh token not rotated here)
      */
     @Transactional
-    public ApiResponse<AuthResponse> refresh(RefreshTokenRequest request)  {
+    public ApiResponse<AuthResponse> refresh(RefreshTokenRequest request, HttpServletRequest httpRequest)  {
 
         String refreshToken = request.getRefreshToken();
 
@@ -260,22 +260,28 @@ public class AuthService {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new InvalidCredentialsException("Invalid refresh token"));
 
-        // Step 3 - user_sessions is the only revocation store. Its hash must
-        // belong to the same user named in the signed refresh JWT.
-        // OWASP A02/A07: never store or compare a raw reusable refresh token.
-        var session = sessionService.validateSession(refreshToken);
-        if (!session.getUser().getId().equals(user.getId())) {
-            log.warn("Refresh token session ownership mismatch for userId={}", user.getId());
-            throw new InvalidCredentialsException("Invalid refresh token");
+        // Step 3 - generate a distinct replacement. rotateSession locks the old
+        // row, revokes it, and saves the replacement atomically (OWASP A07).
+        String newRefreshToken = jwtService.generateRefreshToken(email);
+        try {
+            sessionService.rotateSession(user, refreshToken, newRefreshToken,
+                    extractIp(httpRequest), extractUserAgent(httpRequest));
+        } catch (InvalidCredentialsException exception) {
+            // OWASP A09: a valid-but-consumed refresh JWT is evidence of replay.
+            // Never put either raw token or its hash into logs/audit details.
+            auditService.logTokenRefresh(user.getId(), user.getEmail(), false,
+                    extractIp(httpRequest), extractUserAgent(httpRequest));
+            throw exception;
         }
 
-        // Step 4 - generate only a new access token
-        // Refresh token stays the same - client already has it
+        // Step 4 - issue the access-token companion only after rotation succeeds.
         String newAccessToken = jwtService.generateAccessToken(email);
-        AuthResponse response = AuthResponse.refreshed(
-                newAccessToken,
+        AuthResponse response = AuthResponse.of(
+                newAccessToken, newRefreshToken,
                 jwtService.getExpirationInSeconds()
         );
+        auditService.logTokenRefresh(user.getId(), user.getEmail(), true,
+                extractIp(httpRequest), extractUserAgent(httpRequest));
         log.info("Token refreshed for: userI={}", user.getId());
 
         return ApiResponse.ok("Token refreshed", response);

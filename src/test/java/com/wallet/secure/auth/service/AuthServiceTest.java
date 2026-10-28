@@ -114,6 +114,8 @@ class AuthServiceTest {
                 .logRegister(any(), anyString(), anyString(), anyString());
         lenient().doNothing().when(auditService)
                 .logLogout(any(), anyString(), anyString(), anyString());
+        lenient().doNothing().when(auditService)
+                .logTokenRefresh(any(), anyString(), anyBoolean(), anyString(), anyString());
         lenient().when(auditService.countRecentFailedLogins(any(), anyInt())).thenReturn(0L);
     }
 
@@ -281,8 +283,8 @@ class AuthServiceTest {
     class RefreshTests {
 
         @Test
-        @DisplayName("returns new access token with valid refresh token")
-        void refresh_validToken_returnsNewAccessToken() {
+        @DisplayName("rotates refresh token and returns both replacements")
+        void refresh_validToken_returnsRotatedTokens() {
             // GIVEN
             RefreshTokenRequest request = mock(RefreshTokenRequest.class);
             when(request.getRefreshToken()).thenReturn(REFRESH_TOKEN);
@@ -291,18 +293,20 @@ class AuthServiceTest {
             when(jwtService.extractEmail(REFRESH_TOKEN)).thenReturn(TEST_EMAIL);
             when(userRepository.findByEmail(TEST_EMAIL))
                     .thenReturn(Optional.of(testUser));
-            when(sessionService.validateSession(REFRESH_TOKEN))
-                    .thenReturn(activeSessionFor(testUser));
-
             String newAccessToken = "new.access.jwt.token";
+            String newRefreshToken = "new.refresh.jwt.token";
             when(jwtService.generateAccessToken(TEST_EMAIL)).thenReturn(newAccessToken);
+            when(jwtService.generateRefreshToken(TEST_EMAIL)).thenReturn(newRefreshToken);
 
             // WHEN
-            ApiResponse<AuthResponse> response = authService.refresh(request);
+            ApiResponse<AuthResponse> response = authService.refresh(request, httpRequest);
 
             // THEN
             assertThat(response.isSuccess()).isTrue();
             assertThat(response.getData().getAccessToken()).isEqualTo(newAccessToken);
+            assertThat(response.getData().getRefreshToken()).isEqualTo(newRefreshToken);
+            verify(sessionService).rotateSession(eq(testUser), eq(REFRESH_TOKEN), eq(newRefreshToken), anyString(), anyString());
+            verify(auditService).logTokenRefresh(eq(testUser.getId()), eq(TEST_EMAIL), eq(true), anyString(), anyString());
         }
 
         @Test
@@ -315,7 +319,7 @@ class AuthServiceTest {
 
             // WHEN / THEN
             // Validation fails at JWT signature level — DB is never queried
-            assertThatThrownBy(() -> authService.refresh(request))
+            assertThatThrownBy(() -> authService.refresh(request, httpRequest))
                     .isInstanceOf(InvalidCredentialsException.class)
                     .hasMessageContaining("Invalid or expired refresh token");
 
@@ -334,35 +338,33 @@ class AuthServiceTest {
             when(userRepository.findByEmail(TEST_EMAIL))
                     .thenReturn(Optional.of(testUser));
             doThrow(new InvalidCredentialsException("Session has been revoked or expired"))
-                    .when(sessionService).validateSession(REFRESH_TOKEN);
+                    .when(sessionService).rotateSession(eq(testUser), eq(REFRESH_TOKEN), anyString(), anyString(), anyString());
 
             // WHEN / THEN
             // OWASP A07: token revoked after logout — cannot be reused
-            assertThatThrownBy(() -> authService.refresh(request))
+            assertThatThrownBy(() -> authService.refresh(request, httpRequest))
                     .isInstanceOf(InvalidCredentialsException.class)
                     .hasMessageContaining("revoked");
         }
 
         @Test
-        @DisplayName("throws exception when token session belongs to another user — OWASP A01")
-        void refresh_tokenMismatch_throwsException() {
-            // GIVEN — a valid token hash must still belong to the JWT subject.
-            User anotherUser = User.builder().id(UUID.randomUUID()).email("other@test.com").build();
-
+        @DisplayName("audits a rejected rotated token reuse — OWASP A07/A09")
+        void refresh_rotatedTokenReuse_auditsFailure() {
             RefreshTokenRequest request = mock(RefreshTokenRequest.class);
             when(request.getRefreshToken()).thenReturn(REFRESH_TOKEN);
             when(jwtService.isRefreshTokenValid(REFRESH_TOKEN)).thenReturn(true);
             when(jwtService.extractEmail(REFRESH_TOKEN)).thenReturn(TEST_EMAIL);
             when(userRepository.findByEmail(TEST_EMAIL))
                     .thenReturn(Optional.of(testUser));
-            when(sessionService.validateSession(REFRESH_TOKEN))
-                    .thenReturn(activeSessionFor(anotherUser));
+            doThrow(new InvalidCredentialsException("Session has been revoked or expired"))
+                    .when(sessionService).rotateSession(eq(testUser), eq(REFRESH_TOKEN), anyString(), anyString(), anyString());
 
             // WHEN / THEN
             // OWASP A07: detects stale token reuse attempt
-            assertThatThrownBy(() -> authService.refresh(request))
+            assertThatThrownBy(() -> authService.refresh(request, httpRequest))
                     .isInstanceOf(InvalidCredentialsException.class)
-                    .hasMessageContaining("Invalid refresh token");
+                    .hasMessageContaining("revoked");
+            verify(auditService).logTokenRefresh(eq(testUser.getId()), eq(TEST_EMAIL), eq(false), anyString(), anyString());
         }
     }
 

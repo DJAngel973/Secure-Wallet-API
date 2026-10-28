@@ -1,7 +1,9 @@
 package com.wallet.secure.auth.repository;
 
 import com.wallet.secure.auth.entity.Session;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -29,6 +31,16 @@ public interface SessionRepository extends JpaRepository<Session, UUID> {
      * If not found → token was never registered or was deleted → reject.
      */
     Optional<Session> findByTokenHash(String tokenHash);
+
+    /**
+     * Looks up one refresh-token session while holding a row lock.
+     * A rotation must validate and revoke the old token in one critical section:
+     * otherwise two simultaneous refresh requests could both succeed.
+     * OWASP A07: one-time refresh-token use.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT s FROM Session s WHERE s.tokenHash = :tokenHash")
+    Optional<Session> findByTokenHashWithLock(@Param("tokenHash") String tokenHash);
 
     /**
      * Returns all active (non-revoked, non-expired) sessions for a user.

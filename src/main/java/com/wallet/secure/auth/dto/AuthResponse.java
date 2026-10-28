@@ -10,7 +10,7 @@ import lombok.Getter;
  * Used by:
  * - POST /auth/login    → returns both tokens
  * - POST /auth/register → returns both tokens (user is logged in immediately)
- * - POST /auth/refresh  → returns new accessToken (refreshToken unchanged)
+ * - POST /auth/refresh  → returns new accessToken and rotated refreshToken
  *
  * WHY both tokens together:
  * The client receives accessToken for API calls (15 min)
@@ -35,9 +35,8 @@ public class AuthResponse {
      * Long-lived token to obtain new access tokens silently.
      * Sent only to POST /auth/refresh.
      * Expires in 7 days (JWT_REFRESH_EXPIRATION=604800000).
-     * Stored in DB — invalidated on logout (OWASP A07).
-     *
-     * NULL on refresh response — client keeps the existing refreshToken.
+     * Stored only as a SHA-256 hash in DB — invalidated on logout (OWASP A07).
+     * Every successful refresh returns a replacement and invalidates the prior one.
      */
     private final String refreshToken;
 
@@ -67,8 +66,7 @@ public class AuthResponse {
     }
 
     /**
-     * Factory method — refresh response (only new accessToken).
-     * refreshToken stays NULL — @JsonInclude NON_NULL hides it from response.
+     * Factory method retained for callers that intentionally return only access data.
      */
     public static AuthResponse refreshed(String accessToken, long expiresIn) {
         return AuthResponse.builder()

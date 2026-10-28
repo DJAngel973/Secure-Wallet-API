@@ -108,6 +108,21 @@ public class AuditService {
                 details, ipAddress, userAgent));
     }
 
+    /** Records both successful refresh rotation and rejected reuse without token data. */
+    @Async
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void logTokenRefresh(UUID userId, String email, boolean success,
+                                String ipAddress, String userAgent) {
+        String details = buildDetails(
+                "\"email\":\"" + email + "\"",
+                "\"outcome\":\"" + (success ? "SUCCESS" : "FAILURE") + "\"",
+                "\"reason\":\"" + (success ? "Token rotated" : "Rotated, revoked, or unknown token reused") + "\""
+        );
+        save(success
+                ? AuditLog.success(userId, AuditAction.TOKEN_REFRESH, LogSeverity.INFO, details, ipAddress, userAgent)
+                : AuditLog.failure(userId, AuditAction.TOKEN_REFRESH, LogSeverity.WARNING, details, ipAddress, userAgent));
+    }
+
     /**
      * Logs a new user registration.
      * Called by AuthService.register() after user is created.
