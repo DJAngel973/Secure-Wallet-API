@@ -50,6 +50,7 @@ public class AuthService {
     private final UserService userService;
     private final AuditService auditService;
     private final SessionService sessionService;
+    private final LoginAttemptService loginAttemptService;
 
     // --- Register
 
@@ -187,28 +188,22 @@ public class AuthService {
                             "Account locked", extractIp(httpRequest), extractUserAgent(httpRequest)));
             throw e;
         } catch (BadCredentialsException e) {
-            // Log failure - check if brute force threshold is reached
-            userRepository.findByEmail(request.getEmail()).ifPresent(user -> {
-                auditService.logLoginFailure(user.getId(),
-                        request.getEmail(),
-                        "Bad credentials", extractIp(httpRequest), extractUserAgent(httpRequest));
-                // OWASP A07: brute force detection
-                // If >= 5 failures in 15 minutes -> CRITICAL alert
-                long recentFailures = auditService.countRecentFailedLogins(user.getId(), 15);
-                if (recentFailures >= 5) {
-                    auditService.logCriticalSecurityEvent(
-                            user.getId(),
-                            String.format("Brute force detected: %s failed logins in 15 minutes", recentFailures),
-
-                            extractIp(httpRequest), extractUserAgent(httpRequest));
-                }
-            });
+            // OWASP A07: persist the counter in an independent transaction because
+            // this method rethrows and its transaction will roll back.
+            loginAttemptService.recordFailure(request.getEmail(), ip, userAgent);
             throw e;
         }
 
         // Only reached if authentication succeeded
-        User user = userRepository.findByEmail(request.getEmail())
+        User user = userRepository.findByEmailWithLock(request.getEmail())
                 .orElseThrow(() -> new InvalidCredentialsException("Invalid credentials"));
+
+        // OWASP A07: authentication may have started just before another request
+        // reached the threshold. Recheck after obtaining the same row lock.
+        if (user.isAccountLocked()) {
+            auditService.logLoginFailure(user.getId(), user.getEmail(), "Account locked", ip, userAgent);
+            throw new LockedException("Account temporarily locked");
+        }
 
         // Reset failed attempts counter + update lastLoginAt
         // OWASP A07: counter reset prevents permanent lockout after legitime login

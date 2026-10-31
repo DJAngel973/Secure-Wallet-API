@@ -21,3 +21,17 @@ ALTER TYPE audit_action ADD VALUE IF NOT EXISTS 'WALLET_RESTORE';
 -- Date: 2026-10-27
 -- OWASP A07/A09: a consumed refresh token presented again is a security signal.
 ALTER TYPE audit_action ADD VALUE IF NOT EXISTS 'TOKEN_REFRESH';
+
+-- Migration: align failed-login counter with the application lockout policy
+-- Date: 2026-10-31
+-- OWASP A07: the database must accept every state used by the authoritative
+--            five-attempt policy; otherwise a valid lockout update fails.
+ALTER TABLE users
+    DROP CONSTRAINT IF EXISTS users_failed_login_attempts_check;
+
+ALTER TABLE users
+    DROP CONSTRAINT IF EXISTS users_failed_login_attempts_range;
+
+ALTER TABLE users
+    ADD CONSTRAINT users_failed_login_attempts_range
+        CHECK (failed_login_attempts >= 0 AND failed_login_attempts <= 5);

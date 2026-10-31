@@ -93,8 +93,8 @@ public class User {
 
     /**
      * Failed login counter — reset to 0 on successful login.
-     * DB constraint: CHECK (>= 0 AND <= 3).
-     * When reaches 3 → lockUntil is set.
+     * DB constraint: CHECK (>= 0 AND <= 5).
+     * When reaches the configured threshold → lockUntil is set.
      * OWASP A07: protection against brute force attacks.
      */
     @Column(name = "failed_login_attempts", nullable = false)

@@ -65,6 +65,7 @@ class AuthServiceTest {
     @Mock private AuditService auditService;
     @Mock private HttpServletRequest httpRequest;
     @Mock private SessionService sessionService;
+    @Mock private LoginAttemptService loginAttemptService;
 
     @InjectMocks
     private AuthService authService;
@@ -194,7 +195,7 @@ class AuthServiceTest {
             when(authenticationManager.authenticate(any(UsernamePasswordAuthenticationToken.class)))
                     .thenReturn(mock(Authentication.class));
 
-            when(userRepository.findByEmail(TEST_EMAIL))
+            when(userRepository.findByEmailWithLock(TEST_EMAIL))
                     .thenReturn(Optional.of(testUser));
 
             // WHEN
@@ -218,7 +219,7 @@ class AuthServiceTest {
 
             when(authenticationManager.authenticate(any(UsernamePasswordAuthenticationToken.class)))
                     .thenReturn(mock(Authentication.class));
-            when(userRepository.findByEmail(TEST_EMAIL))
+            when(userRepository.findByEmailWithLock(TEST_EMAIL))
                     .thenReturn(Optional.of(testUser));
 
             // WHEN
@@ -241,7 +242,7 @@ class AuthServiceTest {
 
             when(authenticationManager.authenticate(any(UsernamePasswordAuthenticationToken.class)))
                     .thenReturn(mock(Authentication.class));
-            when(userRepository.findByEmail(TEST_EMAIL))
+            when(userRepository.findByEmailWithLock(TEST_EMAIL))
                     .thenReturn(Optional.of(testUser));
 
             // WHEN
@@ -249,6 +250,26 @@ class AuthServiceTest {
 
             // THEN — lastLoginAt was set — used for suspicious activity detection
             assertThat(testUser.getLastLoginAt()).isNotNull();
+        }
+
+        @Test
+        @DisplayName("rejects a user locked while authentication was in progress — OWASP A07")
+        void login_accountLockedAfterAuthentication_throwsLockedException() {
+            // GIVEN
+            LoginRequest request = mock(LoginRequest.class);
+            when(request.getEmail()).thenReturn(TEST_EMAIL);
+            when(request.getPassword()).thenReturn("SecurePass12!");
+            when(authenticationManager.authenticate(any(UsernamePasswordAuthenticationToken.class)))
+                    .thenReturn(mock(Authentication.class));
+            testUser.setLockedUntil(Instant.now().plusSeconds(60));
+            when(userRepository.findByEmailWithLock(TEST_EMAIL)).thenReturn(Optional.of(testUser));
+
+            // WHEN / THEN
+            assertThatThrownBy(() -> authService.login(request, httpRequest))
+                    .isInstanceOf(org.springframework.security.authentication.LockedException.class);
+            verify(auditService).logLoginFailure(testUser.getId(), TEST_EMAIL,
+                    "Account locked", "127.0.0.1", "JUnit-Test-Agent");
+            verify(jwtService, never()).generateAccessToken(anyString());
         }
 
         @Test
@@ -269,6 +290,8 @@ class AuthServiceTest {
             // whether the email or the password was wrong (prevents user enumeration)
             assertThatThrownBy(() -> authService.login(request, httpRequest))
                     .isInstanceOf(BadCredentialsException.class);
+
+            verify(loginAttemptService).recordFailure(TEST_EMAIL, "127.0.0.1", "JUnit-Test-Agent");
 
             // No tokens were generated — login failed before reaching token generation
             verify(jwtService, never()).generateAccessToken(any());

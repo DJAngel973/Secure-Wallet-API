@@ -7,6 +7,9 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import jakarta.persistence.LockModeType;
+import org.springframework.data.jpa.repository.Lock;
+
 import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
@@ -38,6 +41,14 @@ public interface UserRepository extends JpaRepository<User, UUID> {
      * Used by: AuthService.login(), UserDetailsServiceImpl.loadUserByUsername()
      */
     Optional<User> findByEmail(String email);
+
+    /**
+     * Serializes failed-login accounting for one account.
+     * OWASP A07: concurrent guesses must not overwrite each other's counters.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT u FROM User u WHERE u.email = :email")
+    Optional<User> findByEmailWithLock(@Param("email") String email);
 
     /**
      * Check if an email is already registered.
