@@ -175,8 +175,9 @@ public class User {
     // ─── Business Methods ─────────────────────────────────────────────────────
 
     /**
-     * Checks if the account is currently locked.
-     * Returns true if lockedUntil is set and is in the future.
+     * Checks whether the temporary lock is still active.
+     * A past lockedUntil value no longer blocks authentication; LoginAttemptService
+     * clears it before starting any new failed-attempt sequence.
      */
     public boolean isAccountLocked() {
         return lockedUntil != null && Instant.now().isBefore(lockedUntil);
@@ -197,14 +198,15 @@ public class User {
 
     /**
      * Increments failed login counter.
-     * Called by AuthService on each failed login attempt.
+     * Called by LoginAttemptService while it holds the user's row lock.
      */
     public void incrementFailedLoginAttempts() {
         this.failedLoginAttempts = (this.failedLoginAttempts == null ? 0 : this.failedLoginAttempts) + 1;
     }
 
     /**
-     * Resets failed login counter after successful login.
+     * Resets the current failed-login sequence after a successful login or after
+     * an expired lock is observed before a new sequence starts.
      */
     public void resetFailedLoginAttempts() {
         this.failedLoginAttempts = 0;

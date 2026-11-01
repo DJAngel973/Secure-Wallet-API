@@ -163,7 +163,8 @@ public class AuthService {
      * </p>
      * OWASP A07:
      * - BadCredentialsException -> same message as "User not found" (prevents user enumeration)
-     * - Failed attempts tracked -> account lockout after 3 failures
+     * - Failed attempts are persisted independently -> lockout after the
+     *   configured threshold (five by default), even though login itself fails
      * - LastLoginAt updated on success -> suspicious activity detection
      *
      * @param request DTO with email and password
@@ -181,7 +182,8 @@ public class AuthService {
                             request.getEmail(),
                             request.getPassword()));
         } catch (LockedException e) {
-            // Account is locked - log as WARNING, not CRITICAL (already handled)
+            // OWASP A09: a blocked attempt is security-relevant, but the CRITICAL
+            // event was already recorded when the threshold originally was reached.
             userRepository.findByEmail(request.getEmail()).ifPresent(user ->
                     auditService.logLoginFailure(user.getId(),
                             request.getEmail(),
@@ -205,8 +207,8 @@ public class AuthService {
             throw new LockedException("Account temporarily locked");
         }
 
-        // Reset failed attempts counter + update lastLoginAt
-        // OWASP A07: counter reset prevents permanent lockout after legitime login
+        // A legitimate login closes the current failure sequence.
+        // OWASP A07: reset removes stale failures and clears an expired lock marker.
         user.resetFailedLoginAttempts();
         user.setLastLoginAt(Instant.now());
 
@@ -238,7 +240,7 @@ public class AuthService {
      * 4. Return both replacements; the old token is now invalid
      *
      * @param request DTO with refreshToken
-     * @return ApiResponse with new access token (refresh token not rotated here)
+     * @return ApiResponse with a new access token and a rotated refresh token
      */
     @Transactional
     public ApiResponse<AuthResponse> refresh(RefreshTokenRequest request, HttpServletRequest httpRequest)  {

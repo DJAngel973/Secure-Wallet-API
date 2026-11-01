@@ -12,9 +12,14 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
 
 /**
- * Persists failed-login state independently from the failed authentication flow.
- * The caller rethrows BadCredentialsException, which rolls back its transaction;
- * REQUIRES_NEW ensures the counter and forensic record still survive.
+ * Persists the security state for a failed login independently from authentication.
+ *
+ * WHY REQUIRES_NEW: AuthService rethrows BadCredentialsException, so its
+ * transaction rolls back. The counter, temporary lock and audit evidence must
+ * survive that rollback (OWASP A07/A09).
+ *
+ * WHY the row lock: simultaneous guesses for the same account must observe the
+ * latest counter instead of overwriting one another.
  */
 @Service
 @RequiredArgsConstructor
@@ -39,6 +44,13 @@ public class LoginAttemptService {
         if (user.isAccountLocked()) {
             auditService.logLoginFailure(user.getId(), email, "Account locked", ipAddress, userAgent);
             return;
+        }
+
+        // The lock has expired: begin a new failure sequence. Without this reset,
+        // one wrong password after expiry would immediately lock the user again.
+        // OWASP A07: temporary lockouts must recover predictably for legitimate users.
+        if (user.getLockedUntil() != null) {
+            user.resetFailedLoginAttempts();
         }
 
         user.incrementFailedLoginAttempts();

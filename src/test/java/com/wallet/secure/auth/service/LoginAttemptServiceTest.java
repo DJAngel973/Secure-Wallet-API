@@ -106,5 +106,23 @@ class LoginAttemptServiceTest {
             assertThat(user.getFailedLoginAttempts()).isEqualTo(5);
             verify(auditService).logLoginFailure(user.getId(), email, "Account locked", "127.0.0.1", "JUnit");
         }
+
+        @Test
+        @DisplayName("starts a new sequence after an expired lock")
+        void recordFailure_expiredLock_resetsCounterBeforeIncrementing() {
+            // GIVEN — the lock elapsed, but no successful login has occurred yet.
+            user.setFailedLoginAttempts(5);
+            user.setLockedUntil(Instant.now().minusSeconds(1));
+            when(userRepository.findByEmailWithLock(email)).thenReturn(Optional.of(user));
+
+            // WHEN — this must be failure one in a new sequence, not failure six.
+            loginAttemptService.recordFailure(email, "127.0.0.1", "JUnit");
+
+            // THEN
+            assertThat(user.getFailedLoginAttempts()).isEqualTo(1);
+            assertThat(user.getLockedUntil()).isNull();
+            verify(auditService).logLoginFailure(user.getId(), email, "Bad credentials", "127.0.0.1", "JUnit");
+            verify(auditService, never()).logCriticalSecurityEvent(any(), anyString(), anyString(), anyString());
+        }
     }
 }

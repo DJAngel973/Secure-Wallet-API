@@ -21,7 +21,7 @@ CREATE TABLE users (
 
 COMMENT ON TABLE users IS 'System users with 2FA authentication and lock control';
 COMMENT ON COLUMN users.password_hash IS 'BCrypt hash - NEVER store passwords in plain text';
-COMMENT ON COLUMN users.locked_until IS 'NULL = unlocked, TIMESTAMP = unlocked until that date';
+COMMENT ON COLUMN users.locked_until IS 'NULL = unlocked, TIMESTAMP = locked until that date';
 COMMENT ON COLUMN users.two_factor_secret IS 'Base32 secret for TOTP (Google authenticator)';
 
 -- Table: wallets
