@@ -51,7 +51,8 @@ public class JwtAuthFilter extends OncePerRequestFilter {
      * 1. Extract token from Authorization header
      * 2. Validate token signature and expiration
      * 3. Load user from DB by email in token
-     * 4. Populate SecurityContext if everything is valid
+     * 4. Reject disabled or locked accounts, even if their access JWT is valid
+     * 5. Populate SecurityContext only for an active, unlocked account
      * 5. Continue filter chain regardless of result
      *    (Spring Security handles the 401/403 after this)
      *
@@ -96,7 +97,17 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
             UserDetails userDetails = userDetailsService.loadUserByUsername(email);
 
-            // Step 4 — Build authentication object and populate SecurityContext
+            // OWASP A07: JWT signature/expiry prove that the token was issued, not
+            // that its owner is still allowed to use it. Reloaded account state is
+            // authoritative, so deactivation or a temporary lock takes effect on
+            // the next request without waiting for access-token expiry.
+            if (!userDetails.isEnabled() || !userDetails.isAccountNonLocked()) {
+                log.warn("JWT rejected for disabled or locked account");
+                filterChain.doFilter(request, response);
+                return;
+            }
+
+            // Step 5 — Build authentication object and populate SecurityContext
             // UsernamePasswordAuthenticationToken(principal, credentials, authorities)
             // credentials = null — we don't need the password after token validation
             UsernamePasswordAuthenticationToken authToken =

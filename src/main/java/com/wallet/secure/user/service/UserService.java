@@ -1,6 +1,7 @@
 package com.wallet.secure.user.service;
 
 import com.wallet.secure.audit.service.AuditService;
+import com.wallet.secure.auth.service.SessionService;
 import com.wallet.secure.common.enums.UserRole;
 import com.wallet.secure.common.exception.EmailAlreadyExistsException;
 import com.wallet.secure.common.exception.InvalidCredentialsException;
@@ -45,6 +46,7 @@ public class UserService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final AuditService auditService;
+    private final SessionService sessionService;
 
     // ─── Registration ─────────────────────────────────────────────────────────
 
@@ -199,6 +201,11 @@ public class UserService {
 
         user.setIsActive(false);
         userRepository.save(user);
+
+        // OWASP A07: ending refresh sessions prevents a disabled account from
+        // obtaining new access tokens. JwtAuthFilter rejects any current access
+        // token on its next request using the reloaded isActive state.
+        sessionService.revokeAllSessions(userId);
 
         // OWASP A09: account deactivation is a high-sensitivity operation — always audited
         auditService.logCriticalSecurityEvent(

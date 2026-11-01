@@ -250,7 +250,7 @@ Resolved in code. Failed attempts are serialized with a pessimistic user-row loc
 
 **Current problem**
 
-Password authentication maps active/locked state into Spring Security. During access-token authentication, however, `JwtAuthFilter` constructs an authenticated token after loading `UserDetails` without explicitly rejecting disabled or locked state.
+Resolved. `JwtAuthFilter` now uses the reloaded `UserDetails` account state before creating the `SecurityContext`, and account deactivation revokes all refresh sessions.
 
 **Expected behavior**
 
@@ -268,10 +268,16 @@ Password authentication maps active/locked state into Spring Security. During ac
 
 **Acceptance criteria**
 
-- [ ] An existing access token fails after its user is disabled.
-- [ ] An existing access token fails while its user is locked.
-- [ ] Disabling an account revokes all refresh sessions.
-- [ ] Active, unlocked users continue to authenticate normally.
+- [x] An existing access token fails after its user is disabled.
+- [x] An existing access token fails while its user is locked.
+- [x] Disabling an account revokes all refresh sessions.
+- [x] Active, unlocked users continue to authenticate normally.
+
+**Verification note — 2026-11-01**
+
+- `JwtAuthFilterTest` proves that valid access tokens do not populate the `SecurityContext` for disabled or locked users, while active/unlocked users still authenticate.
+- `UserServiceTest` proves that self-service and ADMIN deactivation revoke all target refresh sessions.
+- `./scripts/test.sh` passed: 121 tests, 0 failures and 0 errors.
 
 ---
 
