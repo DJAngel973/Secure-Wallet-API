@@ -233,13 +233,14 @@ Resolved in code. Failed attempts are serialized with a pessimistic user-row loc
 - [x] A correct password during the lock period cannot authenticate through Spring Security's account-lock status.
 - [x] Authentication succeeds after expiry through the time-based `isAccountLocked()` policy; an expired lock starts a new counter sequence and a successful login resets it to zero.
 - [x] Success resets failed attempts to zero.
-- [ ] A Docker/PostgreSQL concurrency check remains to prove that simultaneous failed attempts serialize as intended. Unit tests cover boundary behavior, unknown-email non-enumeration, locked-account state and the failure handoff.
+- [x] Docker/PostgreSQL concurrency verification proves that simultaneous failed attempts serialize correctly. Unit tests cover boundary behavior, unknown-email non-enumeration, locked-account state and the failure handoff.
 
 **Verification note — 2026-10-31**
 
 - `LoginAttemptService` uses `REQUIRES_NEW` and `findByEmailWithLock()` because `AuthService.login()` rethrows `BadCredentialsException`; without the independent transaction, the counter would roll back with the failed login.
 - The fifth consecutive failed attempt caps the counter at five, sets `locked_until` for 30 minutes, writes a failure audit event and writes a CRITICAL lockout event. When that lock expires, the next failure starts again at one. No raw credentials are logged.
 - `./scripts/test.sh` passed: 118 tests, 0 failures and 0 errors.
+- Docker/PostgreSQL verification: five simultaneous incorrect requests all returned `401`; the resulting row had `failed_login_attempts = 5` and an active `locked_until`; a following correct-password request returned `423`.
 
 ### SEC-006 — Reject JWT authentication for disabled or locked accounts
 
