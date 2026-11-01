@@ -1,6 +1,7 @@
 package com.wallet.secure.user.service;
 
 import com.wallet.secure.audit.service.AuditService;
+import com.wallet.secure.auth.service.SessionService;
 import com.wallet.secure.common.exception.EmailAlreadyExistsException;
 import com.wallet.secure.common.exception.InvalidCredentialsException;
 import com.wallet.secure.common.exception.UnauthorizedOperationException;
@@ -53,6 +54,9 @@ class UserServiceTest {
 
     @Mock
     private AuditService auditService;
+
+    @Mock
+    private SessionService sessionService;
 
     @InjectMocks
     private UserService userService;
@@ -304,6 +308,7 @@ class UserServiceTest {
             // THEN
             assertThat(response.isSuccess()).isTrue();
             verify(userRepository).save(argThat(u -> !u.getIsActive()));
+            verify(sessionService).revokeAllSessions(testUserId);
             // OWASP A09: deactivation is a critical event — must be audited
             verify(auditService).logCriticalSecurityEvent(eq(testUserId), anyString(), isNull(), isNull());
         }
@@ -331,6 +336,7 @@ class UserServiceTest {
             // THEN
             assertThat(response.isSuccess()).isTrue();
             verify(userRepository).save(argThat(u -> !u.getIsActive()));
+            verify(sessionService).revokeAllSessions(testUserId);
             verify(auditService).logCriticalSecurityEvent(eq(testUserId), anyString(), isNull(), isNull());
         }
 
