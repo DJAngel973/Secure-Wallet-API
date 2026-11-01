@@ -50,6 +50,7 @@ public class AuthService {
     private final UserService userService;
     private final AuditService auditService;
     private final SessionService sessionService;
+    private final LoginAttemptService loginAttemptService;
 
     // --- Register
 
@@ -162,7 +163,8 @@ public class AuthService {
      * </p>
      * OWASP A07:
      * - BadCredentialsException -> same message as "User not found" (prevents user enumeration)
-     * - Failed attempts tracked -> account lockout after 3 failures
+     * - Failed attempts are persisted independently -> lockout after the
+     *   configured threshold (five by default), even though login itself fails
      * - LastLoginAt updated on success -> suspicious activity detection
      *
      * @param request DTO with email and password
@@ -180,38 +182,33 @@ public class AuthService {
                             request.getEmail(),
                             request.getPassword()));
         } catch (LockedException e) {
-            // Account is locked - log as WARNING, not CRITICAL (already handled)
+            // OWASP A09: a blocked attempt is security-relevant, but the CRITICAL
+            // event was already recorded when the threshold originally was reached.
             userRepository.findByEmail(request.getEmail()).ifPresent(user ->
                     auditService.logLoginFailure(user.getId(),
                             request.getEmail(),
                             "Account locked", extractIp(httpRequest), extractUserAgent(httpRequest)));
             throw e;
         } catch (BadCredentialsException e) {
-            // Log failure - check if brute force threshold is reached
-            userRepository.findByEmail(request.getEmail()).ifPresent(user -> {
-                auditService.logLoginFailure(user.getId(),
-                        request.getEmail(),
-                        "Bad credentials", extractIp(httpRequest), extractUserAgent(httpRequest));
-                // OWASP A07: brute force detection
-                // If >= 5 failures in 15 minutes -> CRITICAL alert
-                long recentFailures = auditService.countRecentFailedLogins(user.getId(), 15);
-                if (recentFailures >= 5) {
-                    auditService.logCriticalSecurityEvent(
-                            user.getId(),
-                            String.format("Brute force detected: %s failed logins in 15 minutes", recentFailures),
-
-                            extractIp(httpRequest), extractUserAgent(httpRequest));
-                }
-            });
+            // OWASP A07: persist the counter in an independent transaction because
+            // this method rethrows and its transaction will roll back.
+            loginAttemptService.recordFailure(request.getEmail(), ip, userAgent);
             throw e;
         }
 
         // Only reached if authentication succeeded
-        User user = userRepository.findByEmail(request.getEmail())
+        User user = userRepository.findByEmailWithLock(request.getEmail())
                 .orElseThrow(() -> new InvalidCredentialsException("Invalid credentials"));
 
-        // Reset failed attempts counter + update lastLoginAt
-        // OWASP A07: counter reset prevents permanent lockout after legitime login
+        // OWASP A07: authentication may have started just before another request
+        // reached the threshold. Recheck after obtaining the same row lock.
+        if (user.isAccountLocked()) {
+            auditService.logLoginFailure(user.getId(), user.getEmail(), "Account locked", ip, userAgent);
+            throw new LockedException("Account temporarily locked");
+        }
+
+        // A legitimate login closes the current failure sequence.
+        // OWASP A07: reset removes stale failures and clears an expired lock marker.
         user.resetFailedLoginAttempts();
         user.setLastLoginAt(Instant.now());
 
@@ -243,7 +240,7 @@ public class AuthService {
      * 4. Return both replacements; the old token is now invalid
      *
      * @param request DTO with refreshToken
-     * @return ApiResponse with new access token (refresh token not rotated here)
+     * @return ApiResponse with a new access token and a rotated refresh token
      */
     @Transactional
     public ApiResponse<AuthResponse> refresh(RefreshTokenRequest request, HttpServletRequest httpRequest)  {

@@ -7,6 +7,9 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import jakarta.persistence.LockModeType;
+import org.springframework.data.jpa.repository.Lock;
+
 import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
@@ -38,6 +41,14 @@ public interface UserRepository extends JpaRepository<User, UUID> {
      * Used by: AuthService.login(), UserDetailsServiceImpl.loadUserByUsername()
      */
     Optional<User> findByEmail(String email);
+
+    /**
+     * Serializes failed-login accounting for one account.
+     * OWASP A07: concurrent guesses must not overwrite each other's counters.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT u FROM User u WHERE u.email = :email")
+    Optional<User> findByEmailWithLock(@Param("email") String email);
 
     /**
      * Check if an email is already registered.
@@ -102,7 +113,9 @@ public interface UserRepository extends JpaRepository<User, UUID> {
      * Atomic operation — avoids race conditions on concurrent login attempts.
      * OWASP A07: brute force protection counter.
      *
-     * Used by: AuthService on each failed login attempt.
+     * Retained for future batch or administrative operations. SEC-005 uses the
+     * locked entity returned by findByEmailWithLock() so the threshold decision
+     * and update are serialized in one transaction.
      */
     @Modifying
     @Query("UPDATE User u SET u.failedLoginAttempts = u.failedLoginAttempts + 1 WHERE u.id = :id")
@@ -110,10 +123,11 @@ public interface UserRepository extends JpaRepository<User, UUID> {
 
     /**
      * Lock account until a specific timestamp.
-     * Called when failedLoginAttempts reaches MAX_FAILED_ATTEMPTS (3).
+     * Retained for future batch or administrative operations. SEC-005 applies
+     * the configured threshold while holding the user's pessimistic row lock.
      * OWASP A07: temporary lockout after repeated failures.
      *
-     * Used by: AuthService after 3rd consecutive failed login.
+     * The configured threshold is five by default (application.yml).
      */
     @Modifying
     @Query("UPDATE User u SET u.lockedUntil = :until, u.failedLoginAttempts = :attempts WHERE u.id = :id")
@@ -127,7 +141,8 @@ public interface UserRepository extends JpaRepository<User, UUID> {
      * Reset failed attempts and remove lock — after successful login.
      * OWASP A07: clean state after legitimate access.
      *
-     * Used by: AuthService after successful authentication.
+     * Retained for future bulk operations; the SEC-005 entity flow resets the
+     * managed user after successful authentication.
      */
     @Modifying
     @Query("UPDATE User u SET u.failedLoginAttempts = 0, u.lockedUntil = NULL WHERE u.id = :id")

@@ -6,7 +6,8 @@ CREATE TABLE users (
     password_hash TEXT NOT NULL,
     role user_role NOT NULL DEFAULT 'USER',
     is_active BOOLEAN DEFAULT TRUE,
-    failed_login_attempts INT DEFAULT 0 CHECK (failed_login_attempts >= 0 AND failed_login_attempts <= 3),
+    failed_login_attempts INT DEFAULT 0 CONSTRAINT users_failed_login_attempts_range
+        CHECK (failed_login_attempts >= 0 AND failed_login_attempts <= 5),
     locked_until TIMESTAMP,
     email_verified BOOLEAN DEFAULT FALSE,
     two_factor_enabled BOOLEAN DEFAULT FALSE,
@@ -20,7 +21,7 @@ CREATE TABLE users (
 
 COMMENT ON TABLE users IS 'System users with 2FA authentication and lock control';
 COMMENT ON COLUMN users.password_hash IS 'BCrypt hash - NEVER store passwords in plain text';
-COMMENT ON COLUMN users.locked_until IS 'NULL = unlocked, TIMESTAMP = unlocked until that date';
+COMMENT ON COLUMN users.locked_until IS 'NULL = unlocked, TIMESTAMP = locked until that date';
 COMMENT ON COLUMN users.two_factor_secret IS 'Base32 secret for TOTP (Google authenticator)';
 
 -- Table: wallets

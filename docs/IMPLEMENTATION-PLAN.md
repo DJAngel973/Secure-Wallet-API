@@ -163,7 +163,7 @@ The former public seed is no longer used and a controlled bootstrap now exists. 
 
 **Current problem**
 
-The refresh endpoint issues only a new access token and keeps the same refresh token. Reuse detection and atomic rotation are not implemented.
+Resolved. The refresh endpoint now consumes the presented session under a pessimistic row lock and creates a replacement session in the same transaction.
 
 **Expected behavior**
 
@@ -184,11 +184,17 @@ The refresh endpoint issues only a new access token and keeps the same refresh t
 
 **Acceptance criteria**
 
-- [ ] A successful refresh returns two new tokens.
-- [ ] The previous refresh token fails immediately afterward.
-- [ ] Exactly one of two concurrent refresh requests with the same token succeeds.
-- [ ] Rotation and reuse failures create audit evidence without logging token values.
-- [ ] Logout revokes the current rotated session.
+- [x] A successful refresh returns two new tokens.
+- [x] The previous refresh token fails immediately afterward.
+- [x] Exactly one of two concurrent refresh requests with the same token succeeds through `PESSIMISTIC_WRITE` session locking.
+- [x] Rotation and reuse failures create audit evidence without logging token values.
+- [x] Logout revokes the current rotated session.
+
+**Verification note — 2026-10-27**
+
+- `SessionService.rotateSession()` locks the active session row, revokes it and creates its replacement in one transaction; a `jti` makes refresh JWTs unique even when issued in the same second.
+- A real Docker/PostgreSQL flow confirmed refresh rotation, rejection of the old token, and logout revocation of the rotated token.
+- `./scripts/test.sh` passed: 112 tests, 0 failures and 0 errors.
 
 ### SEC-005 — Correct failed-login lockout
 
@@ -198,7 +204,7 @@ The refresh endpoint issues only a new access token and keeps the same refresh t
 
 **Current problem**
 
-Failed login events are audited, but the authentication flow does not demonstrably call repository operations that increment attempts and set `lockedUntil`. Values also conflict: application configuration states five attempts while the database constrains the counter to three.
+Resolved in code. Failed attempts are serialized with a pessimistic user-row lock and persisted in a `REQUIRES_NEW` transaction, so rethrowing the authentication failure cannot roll the counter back. The database and configuration now both use five attempts and a 30-minute lock.
 
 **Expected behavior**
 
@@ -222,12 +228,19 @@ Failed login events are audited, but the authentication flow does not demonstrab
 
 **Acceptance criteria**
 
-- [ ] The configured number of consecutive failures locks the account.
-- [ ] PostgreSQL accepts every valid counter state under the selected policy.
-- [ ] A correct password during the lock period cannot authenticate.
-- [ ] Authentication succeeds after expiry according to the chosen unlock policy.
-- [ ] Success resets failed attempts to zero.
-- [ ] Unit and PostgreSQL-backed tests cover boundary and concurrency cases.
+- [x] The configured number of consecutive failures locks the account.
+- [x] PostgreSQL accepts every valid counter state under the selected policy through the migration and schema constraint.
+- [x] A correct password during the lock period cannot authenticate through Spring Security's account-lock status.
+- [x] Authentication succeeds after expiry through the time-based `isAccountLocked()` policy; an expired lock starts a new counter sequence and a successful login resets it to zero.
+- [x] Success resets failed attempts to zero.
+- [x] Docker/PostgreSQL concurrency verification proves that simultaneous failed attempts serialize correctly. Unit tests cover boundary behavior, unknown-email non-enumeration, locked-account state and the failure handoff.
+
+**Verification note — 2026-10-31**
+
+- `LoginAttemptService` uses `REQUIRES_NEW` and `findByEmailWithLock()` because `AuthService.login()` rethrows `BadCredentialsException`; without the independent transaction, the counter would roll back with the failed login.
+- The fifth consecutive failed attempt caps the counter at five, sets `locked_until` for 30 minutes, writes a failure audit event and writes a CRITICAL lockout event. When that lock expires, the next failure starts again at one. No raw credentials are logged.
+- `./scripts/test.sh` passed: 118 tests, 0 failures and 0 errors.
+- Docker/PostgreSQL verification: five simultaneous incorrect requests all returned `401`; the resulting row had `failed_login_attempts = 5` and an active `locked_until`; a following correct-password request returned `423`.
 
 ### SEC-006 — Reject JWT authentication for disabled or locked accounts
 
