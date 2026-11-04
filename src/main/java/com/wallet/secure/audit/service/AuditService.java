@@ -147,6 +147,26 @@ public class AuditService {
                 details, ipAddress, userAgent));
     }
 
+    /**
+     * Records a successful account deactivation with both actor and target IDs.
+     *
+     * WHY userId is the actor: audit_logs.user_id identifies who performed the
+     * sensitive operation; targetUserId remains in immutable JSONB details for
+     * an administrator's forensic timeline (OWASP A01/A09).
+     */
+    @Async
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void logUserDeactivation(UUID actorUserId, UUID targetUserId, boolean selfService) {
+        String details = buildDetails(
+                "\"actorUserId\":\"" + actorUserId + "\"",
+                "\"targetUserId\":\"" + targetUserId + "\"",
+                "\"mode\":\"" + (selfService ? "SELF_SERVICE" : "ADMIN") + "\"",
+                "\"outcome\":\"SUCCESS\""
+        );
+        save(AuditLog.success(actorUserId, AuditAction.USER_DELETE, LogSeverity.WARNING,
+                details, null, null));
+    }
+
     // ─── Transaction Events
 
     /**

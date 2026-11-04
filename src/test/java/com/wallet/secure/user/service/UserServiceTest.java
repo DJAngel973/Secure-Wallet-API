@@ -19,6 +19,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -112,7 +113,10 @@ class UserServiceTest {
             // Verify BCrypt was called — password must be hashed
             verify(passwordEncoder).encode("SecurePass12!");
             // Verify user was saved to DB
-            verify(userRepository).save(any(User.class));
+            ArgumentCaptor<User> savedUser = ArgumentCaptor.forClass(User.class);
+            verify(userRepository).save(savedUser.capture());
+            // OWASP A01: RegisterRequest has no role field and service fixes USER.
+            assertThat(savedUser.getValue().getRole()).isEqualTo(UserRole.USER);
         }
 
         /**
@@ -309,8 +313,7 @@ class UserServiceTest {
             assertThat(response.isSuccess()).isTrue();
             verify(userRepository).save(argThat(u -> !u.getIsActive()));
             verify(sessionService).revokeAllSessions(testUserId);
-            // OWASP A09: deactivation is a critical event — must be audited
-            verify(auditService).logCriticalSecurityEvent(eq(testUserId), anyString(), isNull(), isNull());
+            verify(auditService).logUserDeactivation(testUserId, testUserId, true);
         }
 
         @Test
@@ -337,7 +340,7 @@ class UserServiceTest {
             assertThat(response.isSuccess()).isTrue();
             verify(userRepository).save(argThat(u -> !u.getIsActive()));
             verify(sessionService).revokeAllSessions(testUserId);
-            verify(auditService).logCriticalSecurityEvent(eq(testUserId), anyString(), isNull(), isNull());
+            verify(auditService).logUserDeactivation(adminId, testUserId, false);
         }
 
         @Test
@@ -361,8 +364,30 @@ class UserServiceTest {
 
             // Account must NOT have been deactivated
             verify(userRepository, never()).save(any());
-            // No audit log for a blocked attempt
-            verify(auditService, never()).logCriticalSecurityEvent(any(), any(), any(), any());
+            verify(auditService, never()).logUserDeactivation(any(), any(), anyBoolean());
+        }
+
+        @Test
+        @DisplayName("Should reject an ADMIN trying to deactivate another ADMIN")
+        void shouldRejectAdminDeactivationOfAnotherAdmin() {
+            // GIVEN
+            UUID requesterId = UUID.randomUUID();
+            User targetAdmin = User.builder().email("target-admin@test.com")
+                    .passwordHash("$2a$12$targetAdminHash").role(UserRole.ADMIN).build();
+            targetAdmin.setId(testUserId);
+            User requesterAdmin = User.builder().email("requester-admin@test.com")
+                    .passwordHash("$2a$12$requesterAdminHash").role(UserRole.ADMIN).build();
+            requesterAdmin.setId(requesterId);
+            when(userRepository.findById(testUserId)).thenReturn(Optional.of(targetAdmin));
+            when(userRepository.findById(requesterId)).thenReturn(Optional.of(requesterAdmin));
+
+            // WHEN / THEN
+            assertThatThrownBy(() -> userService.deactivateAccount(testUserId, requesterId))
+                    .isInstanceOf(UnauthorizedOperationException.class)
+                    .hasMessage("Not authorized to deactivate this account");
+            verify(userRepository, never()).save(any());
+            verify(sessionService, never()).revokeAllSessions(any());
+            verify(auditService, never()).logUserDeactivation(any(), any(), anyBoolean());
         }
     }
 

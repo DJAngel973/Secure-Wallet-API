@@ -7,8 +7,12 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.security.test.context.support.WithMockUser;
+
+import java.util.UUID;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
@@ -42,5 +46,21 @@ class SecurityConfigTest {
     void actuatorHealth_isPublic() throws Exception {
         mockMvc.perform(get("/actuator/health"))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    @WithMockUser(roles = "USER")
+    @DisplayName("Regular user receives 403 from an ADMIN user-management endpoint")
+    void adminUserEndpoint_regularUser_returns403() throws Exception {
+        mockMvc.perform(get("/users/{id}", UUID.randomUUID()))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(roles = "USER")
+    @DisplayName("Regular user receives 403 when trying to deactivate another account")
+    void adminDeactivationEndpoint_regularUser_returns403() throws Exception {
+        mockMvc.perform(delete("/users/{id}", UUID.randomUUID()))
+                .andExpect(status().isForbidden());
     }
 }
