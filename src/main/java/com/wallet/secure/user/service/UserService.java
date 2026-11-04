@@ -40,9 +40,6 @@ import java.util.UUID;
 @Log4j2
 public class UserService {
 
-    private static final int MAX_FAILED_ATTEMPTS = 3;
-    private static final int LOCK_DURATION_MINUTES = 30;
-
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final AuditService auditService;
@@ -197,6 +194,14 @@ public class UserService {
                         requesterId, userId);
                 throw new UnauthorizedOperationException("Not authorized to deactivate this account");
             }
+
+            // OWASP A01: administrators may manage regular accounts only. An API
+            // cannot be used to alter another privileged account, even by ADMIN.
+            if (UserRole.ADMIN.equals(user.getRole())) {
+                log.warn("Blocked attempt to deactivate another ADMIN: requesterId={} targetUserId={}",
+                        requesterId, userId);
+                throw new UnauthorizedOperationException("Not authorized to deactivate this account");
+            }
         }
 
         user.setIsActive(false);
@@ -207,12 +212,8 @@ public class UserService {
         // token on its next request using the reloaded isActive state.
         sessionService.revokeAllSessions(userId);
 
-        // OWASP A09: account deactivation is a high-sensitivity operation — always audited
-        auditService.logCriticalSecurityEvent(
-                userId,
-                "Account deactivated by " + (userId.equals(requesterId) ? "owner" : "ADMIN requesterId=" + requesterId),
-                null, null
-        );
+        // OWASP A09: immutable audit evidence records both actor and target.
+        auditService.logUserDeactivation(requesterId, userId, isSelf);
 
         log.info("Account deactivated: userId={} by requesterId={}", userId, requesterId);
         return ApiResponse.ok("Account deactivated successfully");

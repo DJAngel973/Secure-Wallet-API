@@ -291,7 +291,7 @@ Resolved. `JwtAuthFilter` now uses the reloaded `UserDetails` account state befo
 
 **Current problem**
 
-Administrative read/deactivation operations exist, but there is no consolidated and verified administrative user-management contract. The confirmed model allows an administrator to manage regular users but not create or promote other administrators through the API.
+Resolved. Administrative endpoints enforce `ROLE_ADMIN`, service rules limit cross-account deactivation to regular users, public registration fixes the `USER` role, and deactivation audit records contain immutable actor and target identifiers.
 
 **Expected behavior**
 
@@ -311,11 +311,18 @@ Administrative read/deactivation operations exist, but there is no consolidated 
 
 **Acceptance criteria**
 
-- [ ] `USER` receives `403` for every administrative endpoint.
-- [ ] `ADMIN` can manage only operations explicitly allowed for regular users.
-- [ ] API requests containing privileged role changes are rejected or ignored safely and never persisted.
-- [ ] No API route can create or promote another administrator.
-- [ ] Administrative actions produce immutable audit records.
+- [x] `USER` receives `403` for every administrative endpoint.
+- [x] `ADMIN` can manage only operations explicitly allowed for regular users.
+- [x] API requests containing privileged role changes are rejected or ignored safely and never persisted.
+- [x] No API route can create or promote another administrator.
+- [x] Administrative actions produce immutable audit records.
+
+**Verification note — 2026-11-02**
+
+- `@PreAuthorize("hasRole('ADMIN')")` returns `403` for a `USER` on both user-administration endpoints; `GlobalExceptionHandler` now maps Spring Security `AccessDeniedException` to the same consistent `ApiResponse` contract instead of a `500`.
+- `UserService` accepts ADMIN deactivation of a `USER`, rejects attempts to deactivate another `ADMIN`, and registration persists the fixed `USER` role because `RegisterRequest` has no role field.
+- `AuditService.logUserDeactivation()` writes `USER_DELETE` evidence with immutable actor and target UUIDs.
+- `./scripts/test.sh` passed with 0 failures and 0 errors.
 
 ### AUTHZ-002 — Review wallet permissions and ownership
 

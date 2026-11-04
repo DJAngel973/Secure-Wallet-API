@@ -5,6 +5,7 @@ import lombok.extern.log4j.Log4j2;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -106,7 +107,7 @@ public class GlobalExceptionHandler {
 
     /**
      * 423 — Account locked after too many failed attempts.
-     * Triggered by: AuthService (future) when failedLoginAttempts >= 3.
+     * Triggered by: AuthService when failedLoginAttempts reaches the configured threshold.
      * OWASP A07: brute force protection.
      */
     @ExceptionHandler(AccountLockedException.class)
@@ -130,6 +131,21 @@ public class GlobalExceptionHandler {
         return ResponseEntity
                 .status(HttpStatus.FORBIDDEN)
                 .body(ApiResponse.error(ex.getMessage()));
+    }
+
+    /**
+     * 403 — Spring Security method authorization rejected an authenticated user.
+     * Triggered before a @PreAuthorize-protected controller method executes.
+     *
+     * OWASP A01: return a consistent denial response instead of letting the
+     * generic handler turn an authorization denial into a misleading 500.
+     */
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<ApiResponse<Void>> handleAccessDenied(AccessDeniedException ex) {
+        log.warn("Access denied by Spring Security");
+        return ResponseEntity
+                .status(HttpStatus.FORBIDDEN)
+                .body(ApiResponse.error("Access denied"));
     }
 
     /**
