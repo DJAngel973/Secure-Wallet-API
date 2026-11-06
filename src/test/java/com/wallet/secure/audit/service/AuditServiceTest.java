@@ -73,17 +73,17 @@ class AuditServiceTest {
     class LogUserDeactivationTests {
 
         @Test
-        @DisplayName("records actor and target IDs as immutable USER_DELETE evidence")
+        @DisplayName("records actor and target IDs as immutable ACCOUNT_DEACTIVATE evidence")
         void logUserDeactivation_recordsActorAndTarget() {
             UUID targetUserId = UUID.randomUUID();
 
-            auditService.logUserDeactivation(userId, targetUserId, false);
+            auditService.logUserDeactivation(userId, targetUserId);
 
             ArgumentCaptor<AuditLog> captor = ArgumentCaptor.forClass(AuditLog.class);
             verify(auditLogRepository).save(captor.capture());
             AuditLog saved = captor.getValue();
             assertThat(saved.getUserId()).isEqualTo(userId);
-            assertThat(saved.getAction()).isEqualTo(AuditAction.USER_DELETE);
+            assertThat(saved.getAction()).isEqualTo(AuditAction.ACCOUNT_DEACTIVATE);
             assertThat(saved.getSeverityLevel()).isEqualTo(LogSeverity.WARNING);
             assertThat(saved.getDetails())
                     .contains("\"actorUserId\":\"" + userId + "\"")
@@ -367,9 +367,11 @@ class AuditServiceTest {
             verify(auditLogRepository).save(captor.capture());
 
             AuditLog saved = captor.getValue();
+            assertThat(saved.getUserId()).isEqualTo(userId);
             assertThat(saved.getAction()).isEqualTo(AuditAction.WALLET_SUSPEND);
             // WARNING — suspension is a security-relevant admin action
             assertThat(saved.getSeverityLevel()).isEqualTo(LogSeverity.WARNING);
+            assertThat(saved.getDetails()).contains("\"adminId\":\"" + userId + "\"");
         }
     }
 

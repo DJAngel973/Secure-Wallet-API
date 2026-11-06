@@ -175,33 +175,26 @@ public class UserService {
      * - OWASP A09: audit trail must be preserved
      *
      * @param userId ID of user to deactivate
-     * @param requesterId ID of who is requesting (must be same user or ADMIN)
+     * @param requesterId authenticated ADMIN performing the action
      */
     @Transactional
     public ApiResponse<Void> deactivateAccount(UUID userId, UUID requesterId) {
         User user = findUserById(userId);
 
-        // OWASP A01: only the account owner OR an ADMIN can deactivate an account.
-        // WHY we also load the requester: comparing UUIDs alone is not enough —
-        // an ADMIN will always have a different UUID than the target user.
-        // We must verify the requester's role to allow cross-user deactivation.
-        boolean isSelf = userId.equals(requesterId);
-        if (!isSelf) {
-            User requester = findUserById(requesterId);
-            boolean isAdmin = UserRole.ADMIN.equals(requester.getRole());
-            if (!isAdmin) {
-                log.warn("Unauthorized deactivation attempt: requesterId={} tried userId={}",
-                        requesterId, userId);
-                throw new UnauthorizedOperationException("Not authorized to deactivate this account");
-            }
+        // Defense in depth: @PreAuthorize blocks this at the HTTP boundary, and
+        // this service check also protects future internal callers (OWASP A01).
+        User requester = findUserById(requesterId);
+        if (!UserRole.ADMIN.equals(requester.getRole())) {
+            log.warn("Unauthorized account deactivation attempt: requesterId={} targetUserId={}",
+                    requesterId, userId);
+            throw new UnauthorizedOperationException("Not authorized to deactivate this account");
+        }
 
-            // OWASP A01: administrators may manage regular accounts only. An API
-            // cannot be used to alter another privileged account, even by ADMIN.
-            if (UserRole.ADMIN.equals(user.getRole())) {
-                log.warn("Blocked attempt to deactivate another ADMIN: requesterId={} targetUserId={}",
-                        requesterId, userId);
-                throw new UnauthorizedOperationException("Not authorized to deactivate this account");
-            }
+        // Privileged accounts cannot be changed through this management route.
+        if (UserRole.ADMIN.equals(user.getRole())) {
+            log.warn("Blocked ADMIN-to-ADMIN deactivation: requesterId={} targetUserId={}",
+                    requesterId, userId);
+            throw new UnauthorizedOperationException("Not authorized to deactivate this account");
         }
 
         user.setIsActive(false);
@@ -212,8 +205,10 @@ public class UserService {
         // token on its next request using the reloaded isActive state.
         sessionService.revokeAllSessions(userId);
 
-        // OWASP A09: immutable audit evidence records both actor and target.
-        auditService.logUserDeactivation(requesterId, userId, isSelf);
+        // OWASP A09: this audit joins the state-change transaction. Returning a
+        // success response without durable evidence is unacceptable for an
+        // administrative account block.
+        auditService.logUserDeactivation(requesterId, userId);
 
         log.info("Account deactivated: userId={} by requesterId={}", userId, requesterId);
         return ApiResponse.ok("Account deactivated successfully");

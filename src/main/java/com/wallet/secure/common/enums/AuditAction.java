@@ -21,6 +21,7 @@ public enum AuditAction {
     USER_REGISTER,
     USER_UPDATE,
     USER_DELETE,
+    ACCOUNT_DEACTIVATE,
 
     // Wallet lifecycle
     WALLET_CREATE,

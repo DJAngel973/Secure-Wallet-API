@@ -300,20 +300,19 @@ class UserServiceTest {
     class DeactivateTests {
 
         @Test
-        @DisplayName("Should deactivate own account successfully")
-        void shouldDeactivateOwnAccount() {
-            // GIVEN — user deactivates themselves (userId == requesterId)
+        @DisplayName("Should reject a regular user attempting to deactivate their own account")
+        void shouldRejectSelfServiceDeactivationByRegularUser() {
+            // GIVEN — no self-service endpoint exists, and the service enforces
+            // the same bank-style rule for any future internal caller.
             when(userRepository.findById(testUserId)).thenReturn(Optional.of(testUser));
-            when(userRepository.save(any(User.class))).thenReturn(testUser);
 
-            // WHEN
-            ApiResponse<Void> response = userService.deactivateAccount(testUserId, testUserId);
-
-            // THEN
-            assertThat(response.isSuccess()).isTrue();
-            verify(userRepository).save(argThat(u -> !u.getIsActive()));
-            verify(sessionService).revokeAllSessions(testUserId);
-            verify(auditService).logUserDeactivation(testUserId, testUserId, true);
+            // WHEN / THEN
+            assertThatThrownBy(() -> userService.deactivateAccount(testUserId, testUserId))
+                    .isInstanceOf(UnauthorizedOperationException.class)
+                    .hasMessage("Not authorized to deactivate this account");
+            verify(userRepository, never()).save(any());
+            verify(sessionService, never()).revokeAllSessions(any());
+            verify(auditService, never()).logUserDeactivation(any(), any());
         }
 
         @Test
@@ -340,7 +339,7 @@ class UserServiceTest {
             assertThat(response.isSuccess()).isTrue();
             verify(userRepository).save(argThat(u -> !u.getIsActive()));
             verify(sessionService).revokeAllSessions(testUserId);
-            verify(auditService).logUserDeactivation(adminId, testUserId, false);
+            verify(auditService).logUserDeactivation(adminId, testUserId);
         }
 
         @Test
@@ -364,7 +363,7 @@ class UserServiceTest {
 
             // Account must NOT have been deactivated
             verify(userRepository, never()).save(any());
-            verify(auditService, never()).logUserDeactivation(any(), any(), anyBoolean());
+            verify(auditService, never()).logUserDeactivation(any(), any());
         }
 
         @Test
@@ -387,7 +386,7 @@ class UserServiceTest {
                     .hasMessage("Not authorized to deactivate this account");
             verify(userRepository, never()).save(any());
             verify(sessionService, never()).revokeAllSessions(any());
-            verify(auditService, never()).logUserDeactivation(any(), any(), anyBoolean());
+            verify(auditService, never()).logUserDeactivation(any(), any());
         }
     }
 
