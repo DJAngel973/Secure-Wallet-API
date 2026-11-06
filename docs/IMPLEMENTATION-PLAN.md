@@ -291,11 +291,11 @@ Resolved. `JwtAuthFilter` now uses the reloaded `UserDetails` account state befo
 
 **Current problem**
 
-Resolved. Administrative endpoints enforce `ROLE_ADMIN`, service rules limit cross-account deactivation to regular users, public registration fixes the `USER` role, and deactivation audit records contain immutable actor and target identifiers.
+Resolved. Administrative endpoints enforce `ROLE_ADMIN`; only an ADMIN can deactivate a regular account through `PATCH /users/{id}/deactivate`. The operation changes `isActive` and revokes sessions without deleting financial data, while audit records contain immutable actor and target identifiers.
 
 **Expected behavior**
 
-- `ADMIN` can perform explicitly approved management operations on `USER` accounts.
+- `ADMIN` can deactivate (block) explicitly approved `USER` accounts without deleting them.
 - `USER` cannot invoke administrative operations.
 - No public or administrative API operation creates, promotes, or modifies another `ADMIN`.
 - Every administrative action is audited with actor and target identifiers.
@@ -320,8 +320,8 @@ Resolved. Administrative endpoints enforce `ROLE_ADMIN`, service rules limit cro
 **Verification note — 2026-11-02**
 
 - `@PreAuthorize("hasRole('ADMIN')")` returns `403` for a `USER` on both user-administration endpoints; `GlobalExceptionHandler` now maps Spring Security `AccessDeniedException` to the same consistent `ApiResponse` contract instead of a `500`.
-- `UserService` accepts ADMIN deactivation of a `USER`, rejects attempts to deactivate another `ADMIN`, and registration persists the fixed `USER` role because `RegisterRequest` has no role field.
-- `AuditService.logUserDeactivation()` writes `USER_DELETE` evidence with immutable actor and target UUIDs.
+- `UserService` accepts ADMIN deactivation of a `USER`, rejects self-service and ADMIN-to-ADMIN deactivation, and registration persists the fixed `USER` role because `RegisterRequest` has no role field.
+- `AuditService.logUserDeactivation()` writes `ACCOUNT_DEACTIVATE` evidence with immutable actor and target UUIDs in the same transaction as the state change.
 - `./scripts/test.sh` passed with 0 failures and 0 errors.
 
 ### AUTHZ-002 — Review wallet permissions and ownership
@@ -330,9 +330,9 @@ Resolved. Administrative endpoints enforce `ROLE_ADMIN`, service rules limit cro
 **Priority:** P1  
 **Depends on:** AUTHZ-001
 
-**Current problem**
+**Current problem — resolved**
 
-Wallet controllers derive identity from the JWT and services include ownership patterns, but complete endpoint-by-endpoint authorization evidence is missing.
+Wallet ownership already came from the authenticated principal and ownership lookups use non-enumerating queries. AUTHZ-002 now also proves the route matrix and preserves the administrator (rather than the wallet owner) as the actor in lifecycle audit records.
 
 **Expected behavior**
 
@@ -352,10 +352,17 @@ Wallet controllers derive identity from the JWT and services include ownership p
 
 **Acceptance criteria**
 
-- [ ] User A cannot read, debit, close, suspend, or restore User B's wallet.
-- [ ] User-controlled input cannot assign a wallet to a different owner.
-- [ ] Administrative actions require `ROLE_ADMIN` and generate audit records.
-- [ ] Automated tests cover every wallet endpoint with owner, non-owner, anonymous, and admin actors.
+- [x] User A cannot read, debit, close, suspend, or restore User B's wallet.
+- [x] User-controlled input cannot assign a wallet to a different owner.
+- [x] Administrative actions require `ROLE_ADMIN` and generate audit records.
+- [x] Automated tests cover every wallet endpoint with owner, non-owner, anonymous, and admin actors.
+
+**Verification note — 2026-11-03**
+
+- Ownership-sensitive wallet reads and transaction validation use `findByIdAndUserId`, returning the same `404` for a nonexistent wallet and another user's wallet; controllers never accept an owner ID in request input.
+- The create DTO exposes only `currency`; the service obtains the owner from the JWT-derived ID and forces balance/status server-side.
+- `@PreAuthorize("hasRole('ADMIN')")` blocks a `USER` with `403` on suspend, restore, and close. Anonymous calls to every wallet route return `401`; an `ADMIN` passes the lifecycle authorization gate.
+- Lifecycle audit events now identify the authenticated administrator as the actor and retain the affected `walletId` in immutable audit details.
 
 ### TX-001 — Verify transactions, concurrency, rollback, and audit behavior
 

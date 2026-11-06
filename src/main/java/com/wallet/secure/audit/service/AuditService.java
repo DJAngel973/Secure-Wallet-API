@@ -154,16 +154,15 @@ public class AuditService {
      * sensitive operation; targetUserId remains in immutable JSONB details for
      * an administrator's forensic timeline (OWASP A01/A09).
      */
-    @Async
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void logUserDeactivation(UUID actorUserId, UUID targetUserId, boolean selfService) {
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void logUserDeactivation(UUID actorUserId, UUID targetUserId) {
         String details = buildDetails(
                 "\"actorUserId\":\"" + actorUserId + "\"",
                 "\"targetUserId\":\"" + targetUserId + "\"",
-                "\"mode\":\"" + (selfService ? "SELF_SERVICE" : "ADMIN") + "\"",
+                "\"mode\":\"ADMIN\"",
                 "\"outcome\":\"SUCCESS\""
         );
-        save(AuditLog.success(actorUserId, AuditAction.USER_DELETE, LogSeverity.WARNING,
+        save(AuditLog.success(actorUserId, AuditAction.ACCOUNT_DEACTIVATE, LogSeverity.WARNING,
                 details, null, null));
     }
 

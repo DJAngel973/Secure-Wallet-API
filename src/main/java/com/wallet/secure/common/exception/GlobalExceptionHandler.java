@@ -9,6 +9,7 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -213,6 +214,22 @@ public class GlobalExceptionHandler {
         return ResponseEntity
                 .status(HttpStatus.BAD_REQUEST)
                 .body(ApiResponse.error("Validation failed", errors));
+    }
+
+    /**
+     * 405 — The URL exists but does not support the requested HTTP method.
+     *
+     * WHY this is explicit: removing a destructive DELETE route must not make
+     * clients see a misleading 500 through the generic fallback. The API keeps
+     * its response contract while making the absence of deletion intentional.
+     */
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<ApiResponse<Void>> handleMethodNotSupported(
+            HttpRequestMethodNotSupportedException ex) {
+        log.warn("Unsupported HTTP method: {}", ex.getMethod());
+        return ResponseEntity
+                .status(HttpStatus.METHOD_NOT_ALLOWED)
+                .body(ApiResponse.error("HTTP method not allowed"));
     }
 
     // ─── Generic Fallback ─────────────────────────────────────────────────────

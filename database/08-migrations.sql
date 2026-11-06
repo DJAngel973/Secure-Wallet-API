@@ -35,3 +35,9 @@ ALTER TABLE users
 ALTER TABLE users
     ADD CONSTRAINT users_failed_login_attempts_range
         CHECK (failed_login_attempts >= 0 AND failed_login_attempts <= 5);
+
+-- Migration: represent an administrative account block without implying deletion
+-- Date: 2026-11-03
+-- OWASP A09: financial accounts are retained; audit evidence must distinguish
+-- an is_active=false state change from a hard delete.
+ALTER TYPE audit_action ADD VALUE IF NOT EXISTS 'ACCOUNT_DEACTIVATE';

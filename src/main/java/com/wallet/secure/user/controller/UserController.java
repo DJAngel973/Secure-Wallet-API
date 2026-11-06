@@ -92,30 +92,19 @@ public class UserController {
         return ResponseEntity.ok(userService.updateProfile(userId, request));
     }
 
-    // ─── Account Deactivation ─────────────────────────────────────────────────
+    // ─── Administrative Account Deactivation ──────────────────────────────────
 
     /**
-     * DELETE /users/me
-     * Soft-deactivates the authenticated user's account.
-     * isActive = false — data preserved for audit compliance.
+     * PATCH /users/{id}/deactivate
+     * Deactivates (blocks) an account; it never deletes its financial data.
      *
-     * HTTP 200 with message — not 204, because ApiResponse carries confirmation.
-     * OWASP A09: data retention for financial compliance.
+     * A bank-like wallet must retain users, wallets, transactions and audit
+     * evidence. Therefore this changes only isActive to false and revokes
+     * sessions; only an ADMIN can execute it. PATCH expresses a state change,
+     * unlike DELETE, which would misleadingly imply resource removal.
+     * OWASP A01/A09: ADMIN-only operation with preserved forensic evidence.
      */
-    @DeleteMapping("/me")
-    public ResponseEntity<ApiResponse<Void>> deactivateMyAccount(
-            @AuthenticationPrincipal UserDetails userDetails) {
-
-        UUID userId = resolveUserId(userDetails);
-        return ResponseEntity.ok(userService.deactivateAccount(userId, userId));
-    }
-
-    /**
-     * DELETE /users/{id}
-     * Admin deactivates any user's account.
-     * OWASP A01: ADMIN role required.
-     */
-    @DeleteMapping("/{id}")
+    @PatchMapping("/{id}/deactivate")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<Void>> deactivateUser(
             @PathVariable UUID id,
