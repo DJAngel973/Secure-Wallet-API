@@ -164,10 +164,11 @@ public class WalletService {
      * OWASP A01: @PreAuthorize("hasROle('ADMIN')") enforced at controller level.
      *
      * @param walletId wallet to suspend
+     * @param adminId authenticated administrator's ID, preserved as the audit actor
      * @return ApiResponse with updates WalletResponse
      */
     @Transactional
-    public ApiResponse<WalletResponse> suspendWallet(UUID walletId) {
+    public ApiResponse<WalletResponse> suspendWallet(UUID walletId, UUID adminId) {
 
         Wallet wallet = walletRepository.findById(walletId)
                 .orElseThrow(() -> new ResourceNotFoundException("Wallet not found"));
@@ -178,7 +179,9 @@ public class WalletService {
         wallet.setStatus(WalletStatus.SUSPENDED);
         Wallet saved = walletRepository.save(wallet);
 
-        auditService.logWalletSuspended(wallet.getUser().getId(), walletId, null, null);
+        // OWASP A09: record the administrator who made the state change, not
+        // the wallet owner who was affected by it.
+        auditService.logWalletSuspended(adminId, walletId, null, null);
 
         log.warn("Wallet suspended: walletId={}", walletId);
 
@@ -194,10 +197,11 @@ public class WalletService {
      * OWASP A01: @PreAuthorize("hasRole('ADMIN')") at controller level
      *
      * @param walletId wallet to close permanently
+     * @param adminId authenticated administrator's ID, preserved as the audit actor
      * @return ApiResponse with updated WalletResponse
      */
     @Transactional
-    public ApiResponse<WalletResponse> closeWallet(UUID walletId) {
+    public ApiResponse<WalletResponse> closeWallet(UUID walletId, UUID adminId) {
 
         Wallet wallet = walletRepository.findById(walletId)
                 .orElseThrow(() -> new ResourceNotFoundException("Wallet not found"));
@@ -213,7 +217,8 @@ public class WalletService {
         wallet.setStatus(WalletStatus.CLOSED);
         Wallet saved =  walletRepository.save(wallet);
 
-        auditService.logWalletClosed(wallet.getUser().getId(), walletId, null, null);
+        // OWASP A09: the audit actor is the administrator, never the affected owner.
+        auditService.logWalletClosed(adminId, walletId, null, null);
 
         log.warn("Wallet permanently closed: walletId={}", walletId);
 
@@ -225,10 +230,11 @@ public class WalletService {
      * SUSPENDED -> ACTIVE
      *
      * @param walletId wallet to restore
+     * @param adminId authenticated administrator's ID, preserved as the audit actor
      * @return ApiResponse with updated WalletResponse
      */
     @Transactional
-    public ApiResponse<WalletResponse> restoreWallet(UUID walletId) {
+    public ApiResponse<WalletResponse> restoreWallet(UUID walletId, UUID adminId) {
 
         Wallet wallet =  walletRepository.findById(walletId)
                 .orElseThrow(() -> new ResourceNotFoundException("Wallet not found"));
@@ -241,7 +247,7 @@ public class WalletService {
 
         // OWASP A09: wallet restoration re-enables all financial operations on it —
         // this is a security-relevant state change that must be traceable to the admin.
-        auditService.logWalletRestored(wallet.getUser().getId(), walletId, null, null);
+        auditService.logWalletRestored(adminId, walletId, null, null);
 
         log.warn("Wallet restored to ACTIVE: walletId={}", walletId);
 
