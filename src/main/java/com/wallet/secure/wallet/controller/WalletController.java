@@ -120,9 +120,10 @@ public class WalletController {
      */
     @PatchMapping("/{id}/suspend")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<ApiResponse<WalletResponse>> suspendWallet(@PathVariable UUID id) {
+    public ResponseEntity<ApiResponse<WalletResponse>> suspendWallet(@PathVariable UUID id,
+                                                                      @AuthenticationPrincipal UserDetails userDetails) {
 
-        return ResponseEntity.ok(walletService.suspendWallet(id));
+        return ResponseEntity.ok(walletService.suspendWallet(id, resolveUserId(userDetails)));
     }
 
     /**
@@ -132,9 +133,10 @@ public class WalletController {
      */
     @PatchMapping("/{id}/restore")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<ApiResponse<WalletResponse>> restoreWallet(@PathVariable UUID id) {
+    public ResponseEntity<ApiResponse<WalletResponse>> restoreWallet(@PathVariable UUID id,
+                                                                      @AuthenticationPrincipal UserDetails userDetails) {
 
-        return ResponseEntity.ok(walletService.restoreWallet(id));
+        return ResponseEntity.ok(walletService.restoreWallet(id, resolveUserId(userDetails)));
     }
 
     /**
@@ -146,9 +148,10 @@ public class WalletController {
      */
     @PatchMapping("/{id}/close")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<ApiResponse<WalletResponse>> closeWallet(@PathVariable UUID id) {
+    public ResponseEntity<ApiResponse<WalletResponse>> closeWallet(@PathVariable UUID id,
+                                                                    @AuthenticationPrincipal UserDetails userDetails) {
 
-        return ResponseEntity.ok(walletService.closeWallet(id));
+        return ResponseEntity.ok(walletService.closeWallet(id, resolveUserId(userDetails)));
     }
 
     // --- Private Helper

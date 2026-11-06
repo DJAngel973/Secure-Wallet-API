@@ -64,12 +64,14 @@ public class WalletServiceTest {
 
     private User testUser;
     private UUID userId;
+    private UUID adminId;
     private Wallet activeWallet;
     private UUID walletId;
 
     @BeforeEach
     void setUp() {
         userId = UUID.randomUUID();
+        adminId = UUID.randomUUID();
         walletId = UUID.randomUUID();
 
         testUser = User.builder()
@@ -200,11 +202,12 @@ public class WalletServiceTest {
             when(walletRepository.save(any(Wallet.class))).thenReturn(activeWallet);
 
             // WHEN
-            ApiResponse<WalletResponse> response = walletService.suspendWallet(walletId);
+            ApiResponse<WalletResponse> response = walletService.suspendWallet(walletId, adminId);
 
             // THEN
             assertThat(response.isSuccess()).isTrue();
             assertThat(activeWallet.getStatus()).isEqualTo(WalletStatus.SUSPENDED);
+            verify(auditService).logWalletSuspended(adminId, walletId, null, null);
         }
 
         @Test
@@ -215,7 +218,7 @@ public class WalletServiceTest {
             when(walletRepository.findById(walletId)).thenReturn(Optional.of(activeWallet));
 
             // WHEN / THEN
-            assertThatThrownBy(() -> walletService.suspendWallet(walletId))
+            assertThatThrownBy(() -> walletService.suspendWallet(walletId, adminId))
                     .isInstanceOf(IllegalStateException.class)
                     .hasMessageContaining("ACTIVE");
         }
@@ -228,7 +231,7 @@ public class WalletServiceTest {
             when(walletRepository.findById(walletId)).thenReturn(Optional.of(activeWallet));
 
             // WHEN / THEN
-            assertThatThrownBy(() -> walletService.suspendWallet(walletId))
+            assertThatThrownBy(() -> walletService.suspendWallet(walletId, adminId))
                     .isInstanceOf(IllegalStateException.class);
         }
     }
@@ -248,11 +251,12 @@ public class WalletServiceTest {
             when(walletRepository.save(any(Wallet.class))).thenReturn(activeWallet);
 
             // WHEN
-            ApiResponse<WalletResponse> response = walletService.closeWallet(walletId);
+            ApiResponse<WalletResponse> response = walletService.closeWallet(walletId, adminId);
 
             // THEN
             assertThat(response.isSuccess()).isTrue();
             assertThat(activeWallet.getStatus()).isEqualTo(WalletStatus.CLOSED);
+            verify(auditService).logWalletClosed(adminId, walletId, null, null);
         }
 
         @Test
@@ -264,7 +268,7 @@ public class WalletServiceTest {
 
             // WHEN / THEN
             // Business rule: cannot close wallet with remaining balance
-            assertThatThrownBy(() -> walletService.closeWallet(walletId))
+            assertThatThrownBy(() -> walletService.closeWallet(walletId, adminId))
                     .isInstanceOf(IllegalStateException.class)
                     .hasMessageContaining("balance");
         }
@@ -278,9 +282,31 @@ public class WalletServiceTest {
             when(walletRepository.findById(walletId)).thenReturn(Optional.of(activeWallet));
 
             // WHEN / THEN
-            assertThatThrownBy(() -> walletService.closeWallet(walletId))
+            assertThatThrownBy(() -> walletService.closeWallet(walletId, adminId))
                     .isInstanceOf(IllegalStateException.class)
                     .hasMessageContaining("already closed");
+        }
+    }
+
+    @Nested
+    @DisplayName("restoreWallet()")
+    class RestoreWalletTests {
+
+        @Test
+        @DisplayName("restores SUSPENDED wallet and audits the authenticated administrator")
+        void restoreWallet_suspendedWallet_success() {
+            // GIVEN
+            activeWallet.setStatus(WalletStatus.SUSPENDED);
+            when(walletRepository.findById(walletId)).thenReturn(Optional.of(activeWallet));
+            when(walletRepository.save(any(Wallet.class))).thenReturn(activeWallet);
+
+            // WHEN
+            ApiResponse<WalletResponse> response = walletService.restoreWallet(walletId, adminId);
+
+            // THEN
+            assertThat(response.isSuccess()).isTrue();
+            assertThat(activeWallet.getStatus()).isEqualTo(WalletStatus.ACTIVE);
+            verify(auditService).logWalletRestored(adminId, walletId, null, null);
         }
     }
 
