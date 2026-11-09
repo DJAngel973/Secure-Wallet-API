@@ -348,6 +348,26 @@ class TransactionServiceTest {
         }
 
         @Test
+        @DisplayName("rejects a source wallet that is not owned by the authenticated user")
+        void transfer_sourceWalletNotOwned_throws404() {
+            // GIVEN — WalletService applies findByIdAndUserId and hides ownership
+            // mismatches as a non-enumerating not-found response.
+            TransferRequest request = mock(TransferRequest.class);
+            when(request.getSourceWalletId()).thenReturn(sourceWalletId);
+            when(request.getTargetWalletId()).thenReturn(targetWalletId);
+
+            when(walletService.validateWalletForTransaction(sourceWalletId, ownerId))
+                    .thenThrow(new ResourceNotFoundException("Wallet not found"));
+
+            // WHEN / THEN
+            assertThatThrownBy(() -> transactionService.transfer(ownerId, request))
+                    .isInstanceOf(ResourceNotFoundException.class)
+                    .hasMessage("Wallet not found");
+            verify(walletRepository, never()).findById(targetWalletId);
+            verify(transactionRepository, never()).save(any());
+        }
+
+        @Test
         @DisplayName("throws exception when currencies don't match — no cross-currency")
         void transfer_currencyMismatch_throwsException() {
             // GIVEN — target wallet is EUR, source is USD
