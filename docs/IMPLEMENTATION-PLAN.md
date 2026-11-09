@@ -395,12 +395,18 @@ Transaction services use transactional boundaries and pessimistic locking, but u
 
 **Acceptance criteria**
 
-- [ ] Failed withdrawals and transfers leave all balances unchanged.
+- [x] Failed withdrawals and transfers leave all balances unchanged.
 - [ ] Concurrent withdrawal/transfer tests preserve balance invariants.
-- [ ] Duplicate reference codes are rejected deterministically.
-- [ ] Users cannot transact from wallets they do not own.
+- [x] Duplicate reference codes are rejected deterministically before persistence.
+- [x] Users cannot transact from wallets they do not own.
 - [ ] Transaction status history and security audit records match the final outcome.
 - [ ] PostgreSQL-backed tests demonstrate locking and rollback behavior.
+
+**Verification note — 2026-11-06**
+
+- Unit tests prove failed withdrawal/transfer requests leave source and target balances unchanged, duplicate deposit references are rejected before persistence, and transfer source ownership is enforced through the non-enumerating wallet validation path.
+- `scripts/verify-tx-locking.sh` runs two concurrent PostgreSQL sessions against a temporary probe table and proves `SELECT ... FOR UPDATE` serialization with a final value of `2`; the probe is dropped automatically. This verifies the database primitive used by `WalletRepository.findByIdWithLock()` without modifying wallet data.
+- The application-level concurrent withdrawal/transfer and rollback evidence remains pending for the PostgreSQL-backed integration slice; the generic lock probe is not being presented as a substitute for that requirement.
 
 ---
 
