@@ -36,6 +36,14 @@ public class GlobalExceptionHandler {
 
     // ─── Custom Business Exceptions ───────────────────────────────────────────
 
+    /** 409 — debit rejected without disclosing balance or database details. */
+    @ExceptionHandler(InsufficientFundsException.class)
+    public ResponseEntity<ApiResponse<Void>> handleInsufficientFunds(InsufficientFundsException ex) {
+        log.warn("Financial debit rejected: insufficient funds");
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(ApiResponse.error("Insufficient balance for this transaction"));
+    }
+
     /**
      * 404 — User not found.
      * Triggered by: UserService.findUserById() when user doesn't exist.

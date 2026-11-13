@@ -5,6 +5,7 @@ import com.wallet.secure.common.enums.CurrencyCode;
 import com.wallet.secure.common.enums.TransactionStatus;
 import com.wallet.secure.common.enums.TransactionType;
 import com.wallet.secure.common.exception.ResourceNotFoundException;
+import com.wallet.secure.common.exception.InsufficientFundsException;
 import com.wallet.secure.common.response.ApiResponse;
 import com.wallet.secure.common.util.LogSanitizer;
 import com.wallet.secure.transaction.dto.DepositRequest;
@@ -114,6 +115,11 @@ public class TransactionService {
                         .getId(),
                 userId);
 
+        // The insert has no balance guard for deposits. Lock before mutation to
+        // serialize concurrent credits and prevent lost updates.
+        Wallet lockedTarget = walletRepository.findByIdWithLock(targetWallet.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Wallet not found"));
+
         // Step 1: Create transaction record as PENDING
         Transaction transaction = Transaction.builder()
                 .targetWallet(targetWallet)
@@ -131,11 +137,7 @@ public class TransactionService {
             transaction.markAsProcessing();
             historyService.record(transaction, TransactionStatus.PENDING, TransactionStatus.PROCESSING);
 
-            // Step 3: Acquire lock on target wallet
-            Wallet lockedTarget = walletRepository.findByIdWithLock(targetWallet.getId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Wallet not found"));
-
-            // Strep 4: Credit funds
+            // Step 3: Credit funds
             lockedTarget.setBalance(lockedTarget.getBalance().add(request.getAmount()));
             walletRepository.save(lockedTarget);
 
@@ -205,6 +207,12 @@ public class TransactionService {
                         .getId(),
                 userId);
 
+        // PostgreSQL's trigger independently protects the balance at insert.
+        // Flush PENDING outside the processing catch: a trigger rejection rolls
+        // back this transaction, so its audit must be written independently.
+        Wallet lockedSource = walletRepository.findByIdWithLock(sourceWallet.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Wallet not found"));
+
         // Step 1: Create transaction as PENDING
         Transaction transaction = Transaction.builder()
                 .sourceWallet(sourceWallet)
@@ -216,19 +224,23 @@ public class TransactionService {
                 .build();
         transactionRepository.save(transaction);
         historyService.record(transaction, null, TransactionStatus.PENDING);
+        try {
+            transactionRepository.flush();
+        } catch (RuntimeException persistenceFailure) {
+            if (isInsufficientBalanceFailure(persistenceFailure)) {
+                auditService.logTransactionFailure(userId, "WITHDRAWAL", "Insufficient balance", null, null);
+                throw new InsufficientFundsException();
+            }
+            throw persistenceFailure;
+        }
 
         try {
             transaction.markAsProcessing();
             historyService.record(transaction, TransactionStatus.PENDING, TransactionStatus.PROCESSING);
 
-            // Step 3: Acquire lock on source wallet
-            Wallet lockedSource = walletRepository.findByIdWithLock(sourceWallet.getId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Wallet not found"));
-
-            // Step 4: Validate sufficient balance (amount + fee)
+            // Step 3: Validate sufficient balance (amount + fee)
             if (!lockedSource.hasSufficientBalance(transaction.getTotalDebit())) {
-                throw new IllegalStateException(
-                        String.format("Insufficient balance. Available: %,.2f Required: %,.2f",lockedSource.getBalance(), transaction.getTotalDebit()));
+                throw new InsufficientFundsException();
             }
 
             // Step 5: Debit funds
@@ -260,13 +272,9 @@ public class TransactionService {
             transactionRepository.save(transaction);
             historyService.record(transaction, TransactionStatus.PROCESSING, TransactionStatus.FAILED);
 
-            auditService.logTransactionFailure(
-                    userId,
-                    "WITHDRAWAL",
-                    e.getMessage(),
-                    null, null);
-
-            log.error("WITHDRAWAL failed: txId={} reason={}", transaction.getId(), e.getMessage());
+            auditService.logTransactionFailure(userId, "WITHDRAWAL",
+                    e instanceof InsufficientFundsException ? "Insufficient balance" : "Transaction processing failed", null, null);
+            log.error("WITHDRAWAL failed: txId={} exceptionType={}", transaction.getId(), e.getClass().getSimpleName());
             throw e;
         }
     }
@@ -319,6 +327,22 @@ public class TransactionService {
                     String.format("Currency mismatch: source is %s but target is %s",sourceWallet.getCurrency(), targetWallet.getCurrency()));
         }
 
+        // Lock wallets in UUID order before inserting PENDING. The database
+        // trigger also locks and validates the source wallet during INSERT;
+        // acquiring both rows first avoids inconsistent lock ordering and
+        // ensures trigger validation sees the committed balance after waits.
+        UUID firstLock  = sourceWallet.getId().compareTo(targetWallet.getId()) < 0
+                ? sourceWallet.getId() : targetWallet.getId();
+        UUID secondLock = firstLock.equals(sourceWallet.getId())
+                ? targetWallet.getId() : sourceWallet.getId();
+
+        Wallet first  = walletRepository.findByIdWithLock(firstLock)
+                .orElseThrow(() -> new ResourceNotFoundException("Wallet not found"));
+        Wallet second = walletRepository.findByIdWithLock(secondLock)
+                .orElseThrow(() -> new ResourceNotFoundException("Wallet not found"));
+        Wallet lockedSource = first.getId().equals(sourceWallet.getId()) ? first : second;
+        Wallet lockedTarget = first.getId().equals(targetWallet.getId()) ? first : second;
+
         // Step 1: Create transaction as PENDING
         Transaction transaction = Transaction.builder()
                 .sourceWallet(sourceWallet)
@@ -330,30 +354,23 @@ public class TransactionService {
                 .build();
         transactionRepository.save(transaction);
         historyService.record(transaction, null, TransactionStatus.PENDING);
+        try {
+            transactionRepository.flush();
+        } catch (RuntimeException persistenceFailure) {
+            if (isInsufficientBalanceFailure(persistenceFailure)) {
+                auditService.logTransactionFailure(userId, "TRANSFER", "Insufficient balance", null, null);
+                throw new InsufficientFundsException();
+            }
+            throw persistenceFailure;
+        }
 
         try {
             transaction.markAsProcessing();
             historyService.record(transaction, TransactionStatus.PENDING, TransactionStatus.PROCESSING);
 
-            // Step 3: Acquire locks in UUID order — deadlock prevention
-            UUID firstLock  = sourceWallet.getId().compareTo(targetWallet.getId()) < 0
-                    ? sourceWallet.getId() : targetWallet.getId();
-            UUID secondLock = firstLock.equals(sourceWallet.getId())
-                    ? targetWallet.getId() : sourceWallet.getId();
-
-            Wallet first  = walletRepository.findByIdWithLock(firstLock)
-                    .orElseThrow(() -> new ResourceNotFoundException("Wallet not found"));
-            Wallet second = walletRepository.findByIdWithLock(secondLock)
-                    .orElseThrow(() -> new ResourceNotFoundException("Wallet not found"));
-
-            // Reassign to semantic names after locking
-            Wallet lockedSource = first.getId().equals(sourceWallet.getId()) ? first : second;
-            Wallet lockedTarget = first.getId().equals(targetWallet.getId()) ? first : second;
-
-            // Step 4: Validate sufficient balance
+            // Step 3: Validate sufficient balance
             if (!lockedSource.hasSufficientBalance(transaction.getTotalDebit())) {
-                throw new IllegalStateException(
-                        String.format("Insufficient balance. Available: %,.2f Required: %,.2f",lockedSource.getBalance(), transaction.getTotalDebit()));
+                throw new InsufficientFundsException();
             }
 
             // Step 5: Move funds atomically
@@ -389,10 +406,9 @@ public class TransactionService {
             transactionRepository.save(transaction);
             historyService.record(transaction, TransactionStatus.PROCESSING, TransactionStatus.FAILED);
 
-            auditService.logTransactionFailure(
-                    userId, TransactionType.TRANSFER.name(), e.getMessage(), null, null);
-
-            log.error("TRANSFER failed: txId={} reason={}", transaction.getId(), e.getMessage());
+            auditService.logTransactionFailure(userId, "TRANSFER",
+                    e instanceof InsufficientFundsException ? "Insufficient balance" : "Transaction processing failed", null, null);
+            log.error("TRANSFER failed: txId={} exceptionType={}", transaction.getId(), e.getClass().getSimpleName());
             throw e;
         }
     }
@@ -453,5 +469,14 @@ public class TransactionService {
             throw new IllegalStateException(
                     String.format("Reference code already exists: %s", referenceCode));
         }
+    }
+
+    private boolean isInsufficientBalanceFailure(Throwable failure) {
+        for (Throwable cause = failure; cause != null; cause = cause.getCause()) {
+            if (cause.getMessage() != null && cause.getMessage().contains("Insufficient balance:")) {
+                return true;
+            }
+        }
+        return false;
     }
 }
