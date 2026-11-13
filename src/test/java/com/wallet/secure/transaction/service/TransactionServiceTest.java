@@ -26,6 +26,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import com.wallet.secure.transaction.service.TransactionHistoryService;
+import com.wallet.secure.common.exception.InsufficientFundsException;
 
 import java.math.BigDecimal;
 import java.util.Optional;
@@ -252,7 +253,7 @@ class TransactionServiceTest {
 
             // WHEN / THEN
             assertThatThrownBy(() -> transactionService.withdraw(ownerId, request))
-                    .isInstanceOf(IllegalStateException.class)
+                    .isInstanceOf(InsufficientFundsException.class)
                     .hasMessageContaining("Insufficient balance");
 
             // CRITICAL: balance must NOT have changed after failed withdrawal
@@ -414,7 +415,7 @@ class TransactionServiceTest {
 
             // WHEN / THEN
             assertThatThrownBy(() -> transactionService.transfer(ownerId, request))
-                    .isInstanceOf(IllegalStateException.class)
+                    .isInstanceOf(InsufficientFundsException.class)
                     .hasMessageContaining("Insufficient balance");
 
             // CRITICAL — neither balance changed ← ACID atomicity
