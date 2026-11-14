@@ -6,5 +6,6 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 # `clean` prevents stale compiled classes from hiding errors. Tests use the
-# `test` Spring profile and H2; Docker/PostgreSQL are not required.
+# `test` Spring profile and H2 for most tests; PostgreSQL/Testcontainers
+# integration tests also require an available Docker daemon.
 SPRING_PROFILES_ACTIVE=test ./mvnw clean test --no-transfer-progress

@@ -122,14 +122,18 @@ Never use `@Data` on entities — too broad, causes issues with JPA proxies.
 
 ## Testing Rules — CRITICAL
 
-### Pattern: Unit tests only (no Spring context)
+### Pattern: Unit tests by default; focused integration tests for real boundaries
 ```java
-@ExtendWith(MockitoExtension.class)  // ← always this, never @SpringBootTest
+@ExtendWith(MockitoExtension.class)  // Service logic without Spring context
 class SomeServiceTest {
     @Mock private SomeDependency dep;
     @InjectMocks private SomeService service;
 }
 ```
+
+Use `@SpringBootTest`/MockMvc only where the filter chain or configuration is the subject of the test. Use PostgreSQL/Testcontainers where SQL triggers, locking, or rollback must be proved. Keep those tests isolated and deterministic.
+
+Every new test should name the behavior or defect it would detect. Prioritize invalid input, forbidden ownership, wrong token type, revoked state, insufficient funds, and unchanged state after failure. Assert the observable result and critical side effects, not merely that no exception was thrown. Avoid duplicate cases that add runtime without new evidence.
 
 ### Reference implementations
 Before writing any test, read these existing tests as reference:
@@ -155,10 +159,9 @@ void methodName_condition_expectation() {
 - Exception type AND message ✅
 - `assertThatNoException()` for fire-and-forget operations ✅
 
-### What NOT to test
-- `@Async` behavior → requires Spring context
-- `@Transactional` behavior → requires Spring context
-- Hibernate queries → requires DB
+### What NOT to claim from unit tests
+- Mockito tests do not prove `@Async` or `@Transactional` runtime behavior.
+- Mocked repositories do not prove Hibernate SQL or PostgreSQL locking; use a focused integration test when those guarantees matter.
 
 ### Verification Gate
 - After every code, SQL, configuration, or test change, run `./scripts/test.sh` before reporting the work as verified.
