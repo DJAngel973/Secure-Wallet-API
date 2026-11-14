@@ -444,11 +444,13 @@ The suite primarily proves service logic through Mockito and contains limited Sp
 
 **Acceptance criteria**
 
-- [ ] Tests cover anonymous `401`, authenticated `USER` `403`, and authorized `ADMIN` success.
-- [ ] Tests cover tampered, expired, wrong-type, revoked, and rotated JWTs.
-- [ ] Tests cover account lockout and access-token rejection after state changes.
-- [ ] Tests cover wallet ownership and transaction rollback/concurrency.
-- [ ] CI publishes readable unit and integration test results.
+- [x] Tests cover anonymous `401`, authenticated `USER` `403`, and authorized `ADMIN` success (`SecurityConfigTest`).
+- [x] Tests cover tampered, expired, wrong-type, revoked, and rotated JWTs (`JwtServiceTest`, `AuthServiceTest`, `SessionServiceTest`). Revocation is checked against session state, not JWT signature alone.
+- [x] Tests cover account lockout and access-token rejection after state changes (`LoginAttemptServiceTest`, `JwtAuthFilterTest`).
+- [x] Tests cover wallet ownership and transaction rollback/concurrency (`WalletServiceTest`, `TransactionServiceTest`, `TransactionPostgresIntegrationTest`).
+- [x] CI uploads Surefire XML/text reports for unit, security, and PostgreSQL integration tests even on failure (`.github/workflows/ci.yml`).
+
+**Verification:** Run `./scripts/test.sh` locally with Docker available; the CI workflow uploads `target/surefire-reports/`. A green local run does not substitute for checking the GitHub Actions run after opening a PR.
 
 ### TEST-002 — Create a functional Postman verification suite
 

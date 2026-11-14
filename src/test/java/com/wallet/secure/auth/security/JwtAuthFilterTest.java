@@ -35,6 +35,23 @@ class JwtAuthFilterTest {
     }
 
     @Test
+    @DisplayName("does not resolve an account for an invalid access token — OWASP A07")
+    void doFilterInternal_invalidToken_doesNotLoadUser() throws Exception {
+        // GIVEN — an invalid signature, expiry, or wrong token type fails before user lookup.
+        when(request.getHeader("Authorization")).thenReturn("Bearer " + TOKEN);
+        when(jwtService.isAccessTokenValid(TOKEN)).thenReturn(false);
+
+        // WHEN
+        new JwtAuthFilter(jwtService, userDetailsService)
+                .doFilterInternal(request, response, filterChain);
+
+        // THEN
+        assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+        verifyNoInteractions(userDetailsService);
+        verify(filterChain).doFilter(request, response);
+    }
+
+    @Test
     @DisplayName("rejects a valid access token after its account is disabled — OWASP A07")
     void doFilterInternal_disabledUser_doesNotAuthenticate() throws Exception {
         // GIVEN
