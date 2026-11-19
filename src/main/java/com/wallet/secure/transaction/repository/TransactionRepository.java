@@ -56,7 +56,12 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID> 
      * Used by: GET /transactions/me - full transaction history
      * OWASP A01: userId from JWT - user can only see their own history.
      */
-    @Query("SELECT t FROM Transaction t WHERE t.sourceWallet.user.id = :userId OR t.targetWallet.user.id = :userId ORDER BY t.createdAt DESC")
+    // OWASP A01: nullable wallet sides require LEFT JOINs; implicit INNER JOINs
+    // silently drop deposits (no source) and withdrawals (no target).
+    @Query("SELECT t FROM Transaction t " +
+            "LEFT JOIN t.sourceWallet sw LEFT JOIN sw.user sourceOwner " +
+            "LEFT JOIN t.targetWallet tw LEFT JOIN tw.user targetOwner " +
+            "WHERE sourceOwner.id = :userId OR targetOwner.id = :userId ORDER BY t.createdAt DESC")
     Page<Transaction> findAllByUserId(@Param("userId") UUID userId, Pageable pageable);
 
     /**
@@ -94,7 +99,11 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID> 
      * OWASP A01: a user can only see transactions where they
      * are the sender or receiver - not all transactions in the system.
      */
-    @Query("SELECT t FROM Transaction t WHERE t.id = :transactionId AND (t.sourceWallet.user.id = :userId OR t.targetWallet.user.id = :userId)")
+    // The same nullable-side rule applies to single-transaction ownership checks.
+    @Query("SELECT t FROM Transaction t " +
+            "LEFT JOIN t.sourceWallet sw LEFT JOIN sw.user sourceOwner " +
+            "LEFT JOIN t.targetWallet tw LEFT JOIN tw.user targetOwner " +
+            "WHERE t.id = :transactionId AND (sourceOwner.id = :userId OR targetOwner.id = :userId)")
     Optional<Transaction> findByIdAndUserId(@Param("transactionId") UUID transactionId, @Param("userId") UUID userId);
 
     // --- Admin Queries
