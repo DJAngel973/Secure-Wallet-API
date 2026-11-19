@@ -9,6 +9,7 @@ import com.wallet.secure.common.enums.UserRole;
 import com.wallet.secure.common.exception.InsufficientFundsException;
 import com.wallet.secure.transaction.dto.WithdrawRequest;
 import com.wallet.secure.transaction.dto.TransferRequest;
+import com.wallet.secure.transaction.entity.Transaction;
 import com.wallet.secure.transaction.repository.TransactionHistoryRepository;
 import com.wallet.secure.transaction.repository.TransactionRepository;
 import com.wallet.secure.transaction.service.TransactionService;
@@ -21,8 +22,10 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.containers.BindMode;
@@ -87,6 +90,37 @@ class TransactionPostgresIntegrationTest {
                 .user(user).currency(CurrencyCode.USD).balance(new BigDecimal("100.0000")).build());
         userId = user.getId();
         walletId = wallet.getId();
+    }
+
+    @Test
+    @Transactional
+    @DisplayName("general history includes transactions with a missing source or target wallet")
+    void history_nullableWalletSides_includesAllOwnedTransactions() {
+        Wallet source = walletRepository.findById(walletId).orElseThrow();
+        User recipient = userRepository.saveAndFlush(User.builder()
+                .email("history-recipient-" + UUID.randomUUID() + "@example.test")
+                .passwordHash("$2a$12$integration-test-password-hash")
+                .role(UserRole.USER).isActive(true).emailVerified(true).build());
+        Wallet target = walletRepository.saveAndFlush(Wallet.builder()
+                .user(recipient).currency(CurrencyCode.USD).balance(BigDecimal.ZERO).build());
+
+        Transaction deposit = transactionRepository.saveAndFlush(Transaction.builder()
+                .targetWallet(source).amount(BigDecimal.TEN).currency(CurrencyCode.USD)
+                .transactionType(TransactionType.DEPOSIT).build());
+        Transaction withdrawal = transactionRepository.saveAndFlush(Transaction.builder()
+                .sourceWallet(source).amount(BigDecimal.TEN).currency(CurrencyCode.USD)
+                .transactionType(TransactionType.WITHDRAWAL).build());
+        Transaction transfer = transactionRepository.saveAndFlush(Transaction.builder()
+                .sourceWallet(source).targetWallet(target).amount(BigDecimal.TEN)
+                .currency(CurrencyCode.USD).transactionType(TransactionType.TRANSFER).build());
+
+        var history = transactionRepository.findAllByUserId(userId, PageRequest.of(0, 20));
+        assertThat(history.getTotalElements()).isEqualTo(3);
+        assertThat(history.getContent()).extracting(Transaction::getId)
+                .containsExactlyInAnyOrder(deposit.getId(), withdrawal.getId(), transfer.getId());
+        assertThat(transactionRepository.findByIdAndUserId(deposit.getId(), userId)).isPresent();
+        assertThat(transactionRepository.findByIdAndUserId(withdrawal.getId(), userId)).isPresent();
+        assertThat(transactionRepository.findByIdAndUserId(deposit.getId(), recipient.getId())).isEmpty();
     }
 
     @Test
