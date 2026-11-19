@@ -177,16 +177,14 @@ The current suite primarily contains Mockito unit tests plus a small Spring Secu
 
 ### Explore with Postman
 
-Postman is the primary tool for demonstrating complete local API flows. The planned functional verification covers:
-
-1. Register and login as a regular user.
-2. Store the access and refresh tokens as environment variables.
-3. Send `Authorization: Bearer <accessToken>` to protected endpoints.
-4. Create wallets and perform simulated deposits, withdrawals, and transfers.
-5. Verify ownership failures, insufficient-balance failures, refresh, logout, and session revocation.
-6. Use a controlled bootstrap administrator to verify `USER` versus `ADMIN` authorization.
-
-A versioned Postman collection is planned and tracked in the implementation plan.
+The versioned [Postman regression guide](POSTMAN_PORTFOLIO_PLAN.md) explains how to import
+`postman/wallet.postman_collection.json` and the sanitized
+`postman/wallet.local.postman_environment.json` template, set a private
+fictitious password, and run the ordered collection. It covers positive and
+negative wallet, transaction, authorization, and refresh-token flows without
+requiring public administrator credentials. The user-reported local Collection
+Runner result (29 requests, 89/89 assertions) is recorded in the guide;
+it has not been independently rerun by the agent.
 
 ### Interactive API documentation
 

@@ -458,9 +458,9 @@ The suite primarily proves service logic through Mockito and contains limited Sp
 **Priority:** P2  
 **Depends on:** TEST-001
 
-**Current problem**
+**Current status — verified by the user in local Postman Collection Runner**
 
-Postman is the intended local demonstration tool, but no versioned collection currently provides repeatable critical-flow verification.
+The versioned collection now provides repeatable critical-flow verification.
 
 **Expected behavior**
 
@@ -478,11 +478,30 @@ Postman is the intended local demonstration tool, but no versioned collection cu
 
 **Acceptance criteria**
 
-- [ ] Collection covers register, login, refresh rotation, logout, and revoked-token failure.
-- [ ] Collection covers `USER`/`ADMIN` authorization and wallet ownership.
-- [ ] Collection covers deposit, withdrawal, transfer, insufficient funds, and history.
-- [ ] Collection contains assertions for expected `2xx`, `400`, `401`, `403`, and non-enumerating `404` cases.
-- [ ] Exported files contain no tokens, passwords, local paths, or private environment values.
+- [x] Collection covers register, login, refresh rotation, logout, and revoked-token failure.
+- [x] Collection covers `USER` denial on an `ADMIN` operation and wallet ownership; authorized `ADMIN` behavior is tested separately by `SecurityConfigTest` without public administrator credentials.
+- [x] Collection covers deposit, withdrawal, transfer, insufficient funds, and history.
+- [x] Collection contains assertions for expected `2xx`, `400`, `401`, `403`, `409`, and non-enumerating `404` cases.
+- [x] Versioned collection and environment template contain no usable tokens, passwords, local paths, or private environment values.
+
+**Verification note — 2026-11-18**
+
+- The ordered collection and sanitized environment template are maintained directly
+  in `postman/`; `POSTMAN_PORTFOLIO_PLAN.md` documents setup, regression intent,
+  coverage, and interpretation. The Python generator was removed to avoid two
+  sources of truth.
+- The collection checks 201/200 financial and authentication flows, 409 unchanged
+  balance, 400 input validation, 401/403/404 authorization, token rotation, and
+  logout. It creates unique fictitious users and deposit references on each run.
+- The user reported a successful local Collection Runner rerun after rebuilding
+  the API container: 29 requests and 89/89 assertions passed. The earlier
+  88/89 result exposed a real JPQL defect in general transaction history.
+  `TransactionRepository` now uses nullable-side `LEFT JOIN` ownership
+  checks, with a PostgreSQL integration regression test. The agent did not
+  independently execute Postman or inspect a sanitized Runner export.
+- `./scripts/test.sh` passed after the query fix: 142 tests, 0 failures,
+  0 errors. This completes TEST-002's agreed local scope; it does not claim
+  public-deployment readiness or live `ADMIN` login coverage.
 
 ### DOC-001 — Keep security documentation synchronized with evidence
 

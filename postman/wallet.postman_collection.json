@@ -1,0 +1,1166 @@
+{
+  "info": {
+    "name": "Secure Wallet TEST-002 regression",
+    "description": "Ordered local regression flow. Run with the sanitized environment template and a private demoPassword; never export the populated environment.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "01 Register Alice",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/auth/register",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "auth",
+            "register"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\"email\":\"{{aliceEmail}}\",\"password\":\"{{demoPassword}}\"}"
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const password = pm.environment.get(\"demoPassword\");",
+              "if (!password) throw new Error(\"Set demoPassword privately in the active Postman environment.\");",
+              "const runId = Date.now().toString(36) + Math.random().toString(36).slice(2, 10);",
+              "pm.environment.set(\"runId\", runId);",
+              "pm.environment.set(\"aliceEmail\", \"alice-\" + runId + \"@example.test\");",
+              "pm.environment.set(\"bobEmail\", \"bob-\" + runId + \"@example.test\");"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));",
+              "const body = pm.response.json();",
+              "pm.test(\"API response contract\", () => { pm.expect(body.success).to.eql(true); pm.expect(body.message).to.be.a(\"string\"); pm.expect(body.timestamp).to.be.a(\"string\"); });",
+              "pm.test(\"Registration returns tokens\", () => { pm.expect(body.data.accessToken).to.be.a(\"string\"); pm.expect(body.data.refreshToken).to.be.a(\"string\"); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "02 Login Alice",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/auth/login",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "auth",
+            "login"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\"email\":\"{{aliceEmail}}\",\"password\":\"{{demoPassword}}\"}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+              "const body = pm.response.json();",
+              "pm.test(\"API response contract\", () => { pm.expect(body.success).to.eql(true); pm.expect(body.message).to.be.a(\"string\"); pm.expect(body.timestamp).to.be.a(\"string\"); });",
+              "pm.test(\"Tokens returned\", () => { pm.expect(body.data.accessToken).to.be.a(\"string\").and.not.empty; pm.expect(body.data.refreshToken).to.be.a(\"string\").and.not.empty; });",
+              "pm.environment.set(\"aliceAccessToken\", body.data.accessToken);",
+              "pm.environment.set(\"aliceRefreshToken\", body.data.refreshToken);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "03 Create Alice USD wallet",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{aliceAccessToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/wallets",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "wallets"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\"currency\":\"USD\"}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));",
+              "const body = pm.response.json();",
+              "pm.test(\"API response contract\", () => { pm.expect(body.success).to.eql(true); pm.expect(body.message).to.be.a(\"string\"); pm.expect(body.timestamp).to.be.a(\"string\"); });",
+              "pm.test(\"New USD wallet starts empty\", () => { pm.expect(body.data.id).to.be.a(\"string\"); pm.expect(body.data.currency).to.eql(\"USD\"); pm.expect(Number(body.data.balance)).to.eql(0); });",
+              "pm.environment.set(\"aliceWalletId\", body.data.id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "04 Read Alice wallet",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{aliceAccessToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/wallets/{{aliceWalletId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "wallets",
+            "{{aliceWalletId}}"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+              "const body = pm.response.json();",
+              "pm.test(\"API response contract\", () => { pm.expect(body.success).to.eql(true); pm.expect(body.message).to.be.a(\"string\"); pm.expect(body.timestamp).to.be.a(\"string\"); });",
+              "pm.test(\"Wallet balance and status\", () => { pm.expect(body.data.id).to.eql(pm.environment.get(\"aliceWalletId\")); pm.expect(Number(body.data.balance)).to.eql(0); pm.expect(body.data.status).to.eql(\"ACTIVE\"); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "05 Deposit 100 USD",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{aliceAccessToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/transactions/deposit",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "transactions",
+            "deposit"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\"currency\":\"USD\",\"amount\":100,\"referenceCode\":\"TEST-{{runId}}\"}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));",
+              "const body = pm.response.json();",
+              "pm.test(\"API response contract\", () => { pm.expect(body.success).to.eql(true); pm.expect(body.message).to.be.a(\"string\"); pm.expect(body.timestamp).to.be.a(\"string\"); });",
+              "pm.test(\"Completed transaction\", () => { pm.expect(body.data.id).to.be.a(\"string\"); pm.expect(body.data.status).to.eql(\"COMPLETED\"); });",
+              "pm.test(\"Deposit type and amount\", () => { pm.expect(body.data.transactionType).to.eql(\"DEPOSIT\"); pm.expect(Number(body.data.amount)).to.eql(100); });",
+              "pm.environment.set(\"depositId\",body.data.id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "06 Verify Alice balance 100",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{aliceAccessToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/wallets/{{aliceWalletId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "wallets",
+            "{{aliceWalletId}}"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+              "const body = pm.response.json();",
+              "pm.test(\"API response contract\", () => { pm.expect(body.success).to.eql(true); pm.expect(body.message).to.be.a(\"string\"); pm.expect(body.timestamp).to.be.a(\"string\"); });",
+              "pm.test(\"Wallet balance and status\", () => { pm.expect(body.data.id).to.eql(pm.environment.get(\"aliceWalletId\")); pm.expect(Number(body.data.balance)).to.eql(100); pm.expect(body.data.status).to.eql(\"ACTIVE\"); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "07 Withdraw 20 USD",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{aliceAccessToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/transactions/withdraw",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "transactions",
+            "withdraw"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\"currency\":\"USD\",\"amount\":20}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));",
+              "const body = pm.response.json();",
+              "pm.test(\"API response contract\", () => { pm.expect(body.success).to.eql(true); pm.expect(body.message).to.be.a(\"string\"); pm.expect(body.timestamp).to.be.a(\"string\"); });",
+              "pm.test(\"Completed transaction\", () => { pm.expect(body.data.id).to.be.a(\"string\"); pm.expect(body.data.status).to.eql(\"COMPLETED\"); });",
+              "pm.test(\"Withdrawal type and amount\", () => { pm.expect(body.data.transactionType).to.eql(\"WITHDRAWAL\"); pm.expect(Number(body.data.amount)).to.eql(20); });",
+              "pm.environment.set(\"withdrawId\",body.data.id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "08 Verify Alice balance 80",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{aliceAccessToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/wallets/{{aliceWalletId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "wallets",
+            "{{aliceWalletId}}"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+              "const body = pm.response.json();",
+              "pm.test(\"API response contract\", () => { pm.expect(body.success).to.eql(true); pm.expect(body.message).to.be.a(\"string\"); pm.expect(body.timestamp).to.be.a(\"string\"); });",
+              "pm.test(\"Wallet balance and status\", () => { pm.expect(body.data.id).to.eql(pm.environment.get(\"aliceWalletId\")); pm.expect(Number(body.data.balance)).to.eql(80); pm.expect(body.data.status).to.eql(\"ACTIVE\"); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "09 Insufficient funds",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{aliceAccessToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/transactions/withdraw",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "transactions",
+            "withdraw"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\"currency\":\"USD\",\"amount\":81}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 409\", () => pm.response.to.have.status(409));",
+              "const body = pm.response.json();",
+              "pm.test(\"API response contract\", () => { pm.expect(body.success).to.eql(false); pm.expect(body.message).to.be.a(\"string\"); pm.expect(body.timestamp).to.be.a(\"string\"); });",
+              "pm.test(\"Controlled insufficient-funds error\", () => { pm.expect(body.message).to.eql(\"Insufficient balance for this transaction\"); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "10 Verify failed withdrawal unchanged",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{aliceAccessToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/wallets/{{aliceWalletId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "wallets",
+            "{{aliceWalletId}}"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+              "const body = pm.response.json();",
+              "pm.test(\"API response contract\", () => { pm.expect(body.success).to.eql(true); pm.expect(body.message).to.be.a(\"string\"); pm.expect(body.timestamp).to.be.a(\"string\"); });",
+              "pm.test(\"Wallet balance and status\", () => { pm.expect(body.data.id).to.eql(pm.environment.get(\"aliceWalletId\")); pm.expect(Number(body.data.balance)).to.eql(80); pm.expect(body.data.status).to.eql(\"ACTIVE\"); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "11 Register Bob",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/auth/register",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "auth",
+            "register"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\"email\":\"{{bobEmail}}\",\"password\":\"{{demoPassword}}\"}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));",
+              "const body = pm.response.json();",
+              "pm.test(\"API response contract\", () => { pm.expect(body.success).to.eql(true); pm.expect(body.message).to.be.a(\"string\"); pm.expect(body.timestamp).to.be.a(\"string\"); });",
+              "pm.test(\"Registration returns tokens\", () => { pm.expect(body.data.accessToken).to.be.a(\"string\"); pm.expect(body.data.refreshToken).to.be.a(\"string\"); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "12 Login Bob",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/auth/login",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "auth",
+            "login"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\"email\":\"{{bobEmail}}\",\"password\":\"{{demoPassword}}\"}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+              "const body = pm.response.json();",
+              "pm.test(\"API response contract\", () => { pm.expect(body.success).to.eql(true); pm.expect(body.message).to.be.a(\"string\"); pm.expect(body.timestamp).to.be.a(\"string\"); });",
+              "pm.test(\"Tokens returned\", () => { pm.expect(body.data.accessToken).to.be.a(\"string\").and.not.empty; pm.expect(body.data.refreshToken).to.be.a(\"string\").and.not.empty; });",
+              "pm.environment.set(\"bobAccessToken\", body.data.accessToken);",
+              "pm.environment.set(\"bobRefreshToken\", body.data.refreshToken);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "13 Create Bob USD wallet",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{bobAccessToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/wallets",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "wallets"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\"currency\":\"USD\"}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));",
+              "const body = pm.response.json();",
+              "pm.test(\"API response contract\", () => { pm.expect(body.success).to.eql(true); pm.expect(body.message).to.be.a(\"string\"); pm.expect(body.timestamp).to.be.a(\"string\"); });",
+              "pm.test(\"Recipient wallet starts empty\", () => { pm.expect(body.data.id).to.be.a(\"string\"); pm.expect(Number(body.data.balance)).to.eql(0); });",
+              "pm.environment.set(\"bobWalletId\",body.data.id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "14 Transfer 10 USD Alice to Bob",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{aliceAccessToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/transactions/transfer",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "transactions",
+            "transfer"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\"sourceWalletId\":\"{{aliceWalletId}}\",\"targetWalletId\":\"{{bobWalletId}}\",\"amount\":10}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));",
+              "const body = pm.response.json();",
+              "pm.test(\"API response contract\", () => { pm.expect(body.success).to.eql(true); pm.expect(body.message).to.be.a(\"string\"); pm.expect(body.timestamp).to.be.a(\"string\"); });",
+              "pm.test(\"Completed transaction\", () => { pm.expect(body.data.id).to.be.a(\"string\"); pm.expect(body.data.status).to.eql(\"COMPLETED\"); });",
+              "pm.test(\"Transfer endpoints and amount\", () => { pm.expect(body.data.transactionType).to.eql(\"TRANSFER\"); pm.expect(body.data.sourceWalletId).to.eql(pm.environment.get(\"aliceWalletId\")); pm.expect(body.data.targetWalletId).to.eql(pm.environment.get(\"bobWalletId\")); pm.expect(Number(body.data.amount)).to.eql(10); });",
+              "pm.environment.set(\"transferId\",body.data.id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "15 Verify Alice balance 70",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{aliceAccessToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/wallets/{{aliceWalletId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "wallets",
+            "{{aliceWalletId}}"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+              "const body = pm.response.json();",
+              "pm.test(\"API response contract\", () => { pm.expect(body.success).to.eql(true); pm.expect(body.message).to.be.a(\"string\"); pm.expect(body.timestamp).to.be.a(\"string\"); });",
+              "pm.test(\"Wallet balance and status\", () => { pm.expect(body.data.id).to.eql(pm.environment.get(\"aliceWalletId\")); pm.expect(Number(body.data.balance)).to.eql(70); pm.expect(body.data.status).to.eql(\"ACTIVE\"); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "16 Verify Bob balance 10",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{bobAccessToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/wallets/{{bobWalletId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "wallets",
+            "{{bobWalletId}}"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+              "const body = pm.response.json();",
+              "pm.test(\"API response contract\", () => { pm.expect(body.success).to.eql(true); pm.expect(body.message).to.be.a(\"string\"); pm.expect(body.timestamp).to.be.a(\"string\"); });",
+              "pm.test(\"Wallet balance and status\", () => { pm.expect(body.data.id).to.eql(pm.environment.get(\"bobWalletId\")); pm.expect(Number(body.data.balance)).to.eql(10); pm.expect(body.data.status).to.eql(\"ACTIVE\"); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "17 Alice transaction history",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{aliceAccessToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/transactions",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "transactions"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+              "const body = pm.response.json();",
+              "pm.test(\"API response contract\", () => { pm.expect(body.success).to.eql(true); pm.expect(body.message).to.be.a(\"string\"); pm.expect(body.timestamp).to.be.a(\"string\"); });",
+              "pm.test(\"History includes completed operations\", () => { const ids=body.data.content.map(t=>t.id); [\"depositId\",\"withdrawId\",\"transferId\"].forEach(k=>pm.expect(ids).to.include(pm.environment.get(k))); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "18 Alice wallet history",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{aliceAccessToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/transactions/wallet/{{aliceWalletId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "transactions",
+            "wallet",
+            "{{aliceWalletId}}"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+              "const body = pm.response.json();",
+              "pm.test(\"API response contract\", () => { pm.expect(body.success).to.eql(true); pm.expect(body.message).to.be.a(\"string\"); pm.expect(body.timestamp).to.be.a(\"string\"); });",
+              "pm.test(\"Wallet history includes the transfer\", () => { pm.expect(body.data.content).to.be.an(\"array\"); pm.expect(body.data.content.map(t=>t.id)).to.include(pm.environment.get(\"transferId\")); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "19 Anonymous wallets rejected",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/wallets",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "wallets"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 401\", () => pm.response.to.have.status(401));",
+              "pm.test(\"No body shape assumed for anonymous 401\", () => pm.expect(pm.response.code).to.eql(401));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "20 USER cannot suspend wallet",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{aliceAccessToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/wallets/{{aliceWalletId}}/suspend",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "wallets",
+            "{{aliceWalletId}}",
+            "suspend"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 403\", () => pm.response.to.have.status(403));",
+              "const body = pm.response.json();",
+              "pm.test(\"API response contract\", () => { pm.expect(body.success).to.eql(false); pm.expect(body.message).to.be.a(\"string\"); pm.expect(body.timestamp).to.be.a(\"string\"); });",
+              "pm.test(\"Role denial\", () => pm.expect(body.message).to.eql(\"Access denied\"));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "21 Verify wallet not suspended",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{aliceAccessToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/wallets/{{aliceWalletId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "wallets",
+            "{{aliceWalletId}}"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+              "const body = pm.response.json();",
+              "pm.test(\"API response contract\", () => { pm.expect(body.success).to.eql(true); pm.expect(body.message).to.be.a(\"string\"); pm.expect(body.timestamp).to.be.a(\"string\"); });",
+              "pm.test(\"Wallet balance and status\", () => { pm.expect(body.data.id).to.eql(pm.environment.get(\"aliceWalletId\")); pm.expect(Number(body.data.balance)).to.eql(70); pm.expect(body.data.status).to.eql(\"ACTIVE\"); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "22 Unknown wallet is hidden",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{bobAccessToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/wallets/00000000-0000-0000-0000-000000000001",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "wallets",
+            "00000000-0000-0000-0000-000000000001"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 404\", () => pm.response.to.have.status(404));",
+              "const body = pm.response.json();",
+              "pm.test(\"API response contract\", () => { pm.expect(body.success).to.eql(false); pm.expect(body.message).to.be.a(\"string\"); pm.expect(body.timestamp).to.be.a(\"string\"); });",
+              "pm.test(\"Non-enumerating error\", () => pm.expect(body.message).to.eql(\"Wallet not found\"));",
+              "pm.environment.set(\"missingWalletMessage\",body.message);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "23 Bob cannot read Alice wallet",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{bobAccessToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/wallets/{{aliceWalletId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "wallets",
+            "{{aliceWalletId}}"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 404\", () => pm.response.to.have.status(404));",
+              "const body = pm.response.json();",
+              "pm.test(\"API response contract\", () => { pm.expect(body.success).to.eql(false); pm.expect(body.message).to.be.a(\"string\"); pm.expect(body.timestamp).to.be.a(\"string\"); });",
+              "pm.test(\"Same response as unknown wallet\", () => { pm.expect(body.message).to.eql(pm.environment.get(\"missingWalletMessage\")); pm.expect(body).not.to.have.property(\"data\"); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "24 Invalid deposit amount",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{aliceAccessToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/transactions/deposit",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "transactions",
+            "deposit"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\"currency\":\"USD\",\"amount\":-1}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 400\", () => pm.response.to.have.status(400));",
+              "const body = pm.response.json();",
+              "pm.test(\"API response contract\", () => { pm.expect(body.success).to.eql(false); pm.expect(body.message).to.be.a(\"string\"); pm.expect(body.timestamp).to.be.a(\"string\"); });",
+              "pm.test(\"Validation failure\", () => pm.expect(body.message).to.eql(\"Validation failed\"));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "25 Verify invalid deposit unchanged",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{aliceAccessToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/wallets/{{aliceWalletId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "wallets",
+            "{{aliceWalletId}}"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+              "const body = pm.response.json();",
+              "pm.test(\"API response contract\", () => { pm.expect(body.success).to.eql(true); pm.expect(body.message).to.be.a(\"string\"); pm.expect(body.timestamp).to.be.a(\"string\"); });",
+              "pm.test(\"Wallet balance and status\", () => { pm.expect(body.data.id).to.eql(pm.environment.get(\"aliceWalletId\")); pm.expect(Number(body.data.balance)).to.eql(70); pm.expect(body.data.status).to.eql(\"ACTIVE\"); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "26 Rotate Alice refresh token",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/auth/refresh",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "auth",
+            "refresh"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\"refreshToken\":\"{{aliceRefreshToken}}\"}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+              "const body = pm.response.json();",
+              "pm.test(\"API response contract\", () => { pm.expect(body.success).to.eql(true); pm.expect(body.message).to.be.a(\"string\"); pm.expect(body.timestamp).to.be.a(\"string\"); });",
+              "pm.test(\"Rotation returns distinct tokens\", () => { pm.expect(body.data.accessToken).to.be.a(\"string\").and.not.empty; pm.expect(body.data.refreshToken).to.be.a(\"string\").and.not.eql(pm.environment.get(\"aliceRefreshToken\")); });",
+              "pm.environment.set(\"oldAliceRefreshToken\",pm.environment.get(\"aliceRefreshToken\"));",
+              "pm.environment.set(\"aliceAccessToken\",body.data.accessToken);",
+              "pm.environment.set(\"aliceRefreshToken\",body.data.refreshToken);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "27 Reused refresh rejected",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/auth/refresh",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "auth",
+            "refresh"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\"refreshToken\":\"{{oldAliceRefreshToken}}\"}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 401\", () => pm.response.to.have.status(401));",
+              "const body = pm.response.json();",
+              "pm.test(\"API response contract\", () => { pm.expect(body.success).to.eql(false); pm.expect(body.message).to.be.a(\"string\"); pm.expect(body.timestamp).to.be.a(\"string\"); });",
+              "pm.test(\"Consumed token rejected\", () => pm.expect(body.message).to.match(/revoked|already/i));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "28 Logout Alice",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{aliceAccessToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/auth/logout",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "auth",
+            "logout"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\"refreshToken\":\"{{aliceRefreshToken}}\"}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+              "const body = pm.response.json();",
+              "pm.test(\"API response contract\", () => { pm.expect(body.success).to.eql(true); pm.expect(body.message).to.be.a(\"string\"); pm.expect(body.timestamp).to.be.a(\"string\"); });",
+              "pm.test(\"Logout confirmed\", () => pm.expect(body.message).to.eql(\"Logout successful\"));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "29 Revoked refresh rejected",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/auth/refresh",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "auth",
+            "refresh"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\"refreshToken\":\"{{aliceRefreshToken}}\"}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 401\", () => pm.response.to.have.status(401));",
+              "const body = pm.response.json();",
+              "pm.test(\"API response contract\", () => { pm.expect(body.success).to.eql(false); pm.expect(body.message).to.be.a(\"string\"); pm.expect(body.timestamp).to.be.a(\"string\"); });",
+              "pm.test(\"Revoked token rejected\", () => pm.expect(body.message).to.match(/revoked|expired/i));"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}
