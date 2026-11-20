@@ -1,23 +1,25 @@
-# Secure Wallet API — Implementation Plan
+# Secure Wallet API — Educational Implementation Plan (Closed Scope)
 
-This plan records the work required to align the implementation, tests, and documentation with the confirmed architecture of Secure Wallet API. An item listed here is not evidence that the behavior is already implemented.
+This plan records the completed remediation and verification work for the **local educational scope** of Secure Wallet API. It is a historical evidence record, not a roadmap for more features or a claim of production readiness. Acceptance criteria and verification notes below identify what was actually tested.
 
 ## Scope and status model
 
 Secure Wallet API is an educational-professional backend for a simulated multi-currency savings wallet. It runs locally through Docker Compose and demonstrates its HTTP flows primarily with Postman. It does not process real money and is not intended for public production deployment.
 
+**Closure decision — 2026-11-19:** The owner does not want further application features. All P0–P2 work items have their scoped acceptance criteria checked. TOTP and configurable financial limits are **not part of this release**; see [future-project guidance](../SECURITY.md#considerations-for-real-world-projects) for why and when to evaluate them. Closing this plan does not mean every conceivable security control or deployment scenario has been verified.
+
 | Label | Meaning |
 |-------|---------|
 | **Confirmed requirement** | Approved target behavior that implementation must satisfy |
 | **Detected defect** | Current behavior contradicts an approved requirement or security expectation |
-| **Pending decision** | Design must be confirmed before implementation |
+| **Out of scope** | Intentionally not implemented in this educational release; not a failed acceptance criterion |
 
 Priorities:
 
 - **P0 — Security blocker:** resolve before treating the related control as functional.
 - **P1 — Core correctness:** required for reliable authorization, transactions, or evidence.
 - **P2 — Verification/documentation:** required for repeatable demonstration and accurate claims.
-- **P3 — Future design:** intentionally deferred until its requirements are approved.
+- **P3 — Future-project considerations:** guidance only, not an implementation commitment.
 
 ## Dependency order
 
@@ -511,7 +513,7 @@ The versioned collection now provides repeatable critical-flow verification.
 
 **Current problem — resolved for the reviewed documents**
 
-The reviewed documentation previously lagged completed token-rotation and lockout work, while describing TOTP, limits, inactivity timeout, and local HTTPS as active controls. The documents now distinguish tested controls from pending decisions and deployment requirements.
+The reviewed documentation previously lagged completed token-rotation and lockout work, while describing TOTP, limits, inactivity timeout, and local HTTPS as active controls. The documents now distinguish tested controls from out-of-scope considerations and deployment requirements.
 
 **Expected behavior**
 
@@ -536,102 +538,31 @@ The reviewed documentation previously lagged completed token-rotation and lockou
 
 **Verification note — 2026-11-19**
 
-- Reconciled `README.md`, `SECURITY.md`, `CONTEXT.md`, `DECISIONS.md`, and `database/README.md` with the completed SEC/AUTHZ/TX/TEST evidence. Historical ADR-004/005 are explicitly pending design review, not silently deleted.
+- Reconciled `README.md`, `SECURITY.md`, `CONTEXT.md`, `DECISIONS.md`, and `database/README.md` with the completed SEC/AUTHZ/TX/TEST evidence. Historical ADR-004/005 were retained for educational context and later marked not adopted for this release.
 - Replaced all-green OWASP claims with evidence and residual-work mapping. Clarified that local HTTP, configured transaction limits, TOTP columns, and enum statuses do not imply active security controls.
 - Local Markdown file links resolve, `git diff --check` passed, and `./scripts/test.sh` passed: 142 tests, 0 failures, 0 errors, 0 skipped. This documentation review does not constitute a comprehensive security assessment.
 
 ---
 
-## P3 — Decisions pending confirmation
+## P3 — Future-project considerations (outside this release)
 
 ### DESIGN-001 — Review TOTP-based two-factor authentication
 
-**Classification:** Pending decision  
-**Priority:** P3  
-**Depends on:** Stable authentication, session, and administrative provisioning flows
-
-**Current problem**
-
-The model and architecture documents reference TOTP, but enrollment, secret protection, recovery, verification, reauthentication, and administrative policy are not fully designed or implemented.
-
-**Expected behavior if approved**
-
-- A written decision defines which operations require TOTP.
-- Enrollment requires identity verification and protected secret handling.
-- Recovery and reset flows are abuse-resistant and audited.
-- Tests prove bypass resistance and recovery behavior.
-
-**Possibly affected files**
-
-- `DECISIONS.md`
-- Authentication entities, DTOs, controllers, and services
-- Encryption/key-management configuration
-- Audit actions
-- Security and functional tests
-
-**Acceptance criteria for the decision phase**
-
-- [ ] Threat model and protected operations are approved.
-- [ ] Secret storage and recovery strategy are approved.
-- [ ] UX and Postman demonstration flow are documented.
-- [ ] Implementation is not started until the decision is accepted.
+**Disposition:** Not adopted for this educational release. Existing `two_factor_*` fields do not provide enrollment or verification. A project with real users, exposed accounts, or privileged administrators should assess MFA, secure factor enrollment/recovery, secret protection, replay resistance, and audit before deployment. See [SECURITY.md](../SECURITY.md#considerations-for-real-world-projects) and [OWASP MFA guidance](https://cheatsheetseries.owasp.org/cheatsheets/Multifactor_Authentication_Cheat_Sheet.html). No future implementation is promised here.
 
 ### DESIGN-002 — Review configurable financial limits
 
-**Classification:** Pending decision  
-**Priority:** P3  
-**Depends on:** TX-001
+**Disposition:** Not adopted for this simulated-wallet release. The `app.transaction` values are not enforcement. A system moving real funds would need approved per-currency limits and atomic checks against concurrent debits; the limit policy must specify which operations count and when daily usage resets. See [SECURITY.md](../SECURITY.md#considerations-for-real-world-projects). No future implementation is promised here.
 
-**Current problem**
+## Closure evidence and boundaries
 
-Configuration contains transaction and daily-limit values, but their semantics, currency handling, enforcement point, concurrency behavior, and administrative ownership are not fully defined.
+| Area | Evidence at closure | Boundary |
+|---|---|---|
+| P0–P2 requirements | All scoped acceptance criteria above are checked; SEC, AUTHZ, TX, TEST, and DOC notes link to code/tests or recorded local checks | This is not an exhaustive security assessment |
+| Automated tests | `./scripts/test.sh`: 142 tests, 0 failures, 0 errors, 0 skipped on 2026-11-19 | A local pass does not prove every later CI run |
+| PostgreSQL and Docker | Clean schema/bootstrap and focused PostgreSQL concurrency checks are recorded in SEC-001/002/005 and TX-001 | No claim that every clean environment, migration path, or deployment was retested at closure |
+| Functional API | User reported a successful Postman Collection Runner execution: 29 requests, 89/89 assertions (TEST-002) | Agent did not independently rerun Postman or prove a fresh-database run |
+| Documentation | DOC-001 reconciled the reviewed security claims with evidence and non-goals | Not a certification or guarantee that every future change stays synchronized |
+| Secrets and delivery | Tracked templates/collection were reviewed for reusable credentials (SEC-002, TEST-002) | No blanket claim that all historical logs/artifacts were searched; a post-merge JAR job later had a Maven download failure, not a demonstrated application-test failure |
 
-**Expected behavior if approved**
-
-- Limits have an explicit business meaning and currency strategy.
-- Enforcement is atomic and cannot be bypassed with concurrent requests.
-- Configuration ownership and administrative override rules are documented.
-- Limit failures do not change balances and are audited.
-
-**Possibly affected files**
-
-- `DECISIONS.md`
-- Transaction configuration properties
-- `TransactionService.java`
-- Transaction repositories/queries
-- Database constraints or aggregation queries if selected
-- Transaction tests and Postman collection
-
-**Acceptance criteria for the decision phase**
-
-- [ ] Per-transaction and daily-limit semantics are approved.
-- [ ] Multi-currency handling is defined.
-- [ ] Concurrency and reset-window behavior are defined.
-- [ ] Implementation is not started until the decision is accepted.
-
----
-
-## Known decision conflicts
-
-These conflicts must be resolved explicitly during implementation rather than silently in documentation:
-
-| Conflict | Current sources | Required resolution |
-|----------|-----------------|---------------------|
-| Functional roles | PostgreSQL and `UserRole` currently include `MANAGER`; confirmed target business roles are `USER` and `ADMIN` | Decide whether `MANAGER` is removed through migration or retained as a non-functional reserved value |
-| Login-attempt threshold | Database allows up to 3; application configuration and security documentation state 5 | Select one policy, migrate schema/configuration, and test it |
-| Refresh-token storage | Session model stores SHA-256 hashes; user model stores the original token | Make the session model authoritative and remove legacy storage safely |
-| Refresh behavior | Architecture requires rotation; current implementation reuses the refresh token | Define atomic rotation and reuse handling before implementation |
-| Email verification | Model/documentation describe verification as required; authentication currently does not consistently enforce it | Confirm whether verification is required for this educational scope |
-| Administrative provisioning | Public seed creates an administrator; confirmed architecture requires controlled bootstrap | Separate development data and implement one-time bootstrap |
-| TOTP and limits | Architecture documents describe them as controls; current decision marks them pending | Keep them pending until separate design decisions are accepted |
-
-## Definition of project verification
-
-The project should not be described as fully verified until all applicable checks are satisfied:
-
-- [ ] Docker Compose starts a clean local environment without public default administrative credentials.
-- [ ] Bootstrap, authentication, authorization, session, wallet, and transaction acceptance criteria pass.
-- [ ] Unit, security integration, and PostgreSQL-backed tests pass.
-- [ ] The Postman critical-flow collection passes from a clean local environment.
-- [ ] README, security documentation, and architecture decisions describe the same behavior.
-- [ ] No source, exported collection, logs, or artifacts contain secrets or reusable tokens.
+**Closed means:** the agreed educational implementation work is finished. It does **not** mean production readiness, processing real money, universal test coverage, a permanently green CI, or implementation of the P3 considerations. A real deployment must begin with a new threat model and its own acceptance criteria, not by treating this closed plan as authorization to deploy.

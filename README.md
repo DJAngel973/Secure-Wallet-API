@@ -6,7 +6,7 @@ Built with **Java 17**, **Spring Boot 3.4.2**, and **PostgreSQL 16**.
 
 > This project is designed for local learning and portfolio demonstration. All balances and operations are simulated: it does not process real money and is not intended for public production deployment.
 >
-> The project is under active development. Confirmed requirements, detected defects, pending decisions, and verification work are tracked in [`docs/IMPLEMENTATION-PLAN.md`](docs/IMPLEMENTATION-PLAN.md).
+> The agreed educational implementation scope is closed. [`docs/IMPLEMENTATION-PLAN.md`](docs/IMPLEMENTATION-PLAN.md) records what was verified and its limits; it is not a backlog of promised features or a production-readiness certificate.
 
 ---
 
@@ -24,6 +24,7 @@ Secure Wallet API explores how the main components of a savings-wallet backend w
 - Automated build, test, dependency scanning, and static analysis workflows
 
 The goal is to study both successful flows and failure scenarios: unauthorized access, invalid tokens, insufficient balances, concurrent updates, session revocation, and auditability.
+It is a learning reference for **Spring Security authentication and authorization**, not a template that can be deployed unchanged for real users or money.
 
 ---
 
@@ -34,7 +35,7 @@ Status labels used below:
 - **Implemented** — code for the capability exists.
 - **Verified** — automated or documented functional evidence exists.
 - **Partial** — some parts exist, but the complete requirement is not yet satisfied or verified.
-- **Planned** — confirmed requirement or candidate decision that has not been fully implemented.
+- **Out of scope** — intentionally not implemented in this educational release; assess separately for a real-world system.
 
 ### User Management
 
@@ -62,7 +63,7 @@ Status labels used below:
 
 - **Implemented:** `BigDecimal`/`DECIMAL(19,4)` amounts, transactional service boundaries, reference codes, and pessimistic balance locking.
 - **Verified for tested cases:** concurrent debits, rollback, ownership, history, and audit evidence in PostgreSQL; the local Postman collection was also reported passing ([TX-001](docs/IMPLEMENTATION-PLAN.md#tx-001--verify-transactions-concurrency-rollback-and-audit-behavior), [`TransactionPostgresIntegrationTest`](src/test/java/com/wallet/secure/transaction/integration/TransactionPostgresIntegrationTest.java), [Postman guide](POSTMAN_PORTFOLIO_PLAN.md)). Rejected operations roll back their transaction/history rows and retain failure audit evidence.
-- **Pending decision:** configurable transaction limits and thresholds must be reviewed before full implementation.
+- **Out of scope:** configurable transaction/daily limits are not enforced; a real-money system would need a per-currency, concurrency-safe policy ([security guidance](SECURITY.md#considerations-for-real-world-projects)).
 
 ### Authentication & Security
 
@@ -72,7 +73,7 @@ Status labels used below:
 - **Implemented:** refresh-session tracking and revocation support.
 - **Verified:** refresh-token rotation and revocation use SHA-256 hashes in `user_sessions`; legacy raw-token storage was removed ([SEC-003/004](docs/IMPLEMENTATION-PLAN.md#sec-003--remove-original-refresh-token-storage-from-the-user-record), [`SessionServiceTest`](src/test/java/com/wallet/secure/auth/service/SessionServiceTest.java)).
 - **Verified:** disabled or locked accounts are rejected during login and JWT-authenticated requests ([SEC-005/006](docs/IMPLEMENTATION-PLAN.md#sec-005--correct-login-attempt-lockout)).
-- **Pending decision:** TOTP-based 2FA requires a separate design review before full implementation.
+- **Out of scope:** TOTP-based MFA is not implemented; evaluate it for real accounts and privileged access ([security guidance](SECURITY.md#considerations-for-real-world-projects)).
 
 ### Audit Trail
 
@@ -233,8 +234,8 @@ OWASP Top 10 is used as an awareness and review framework, not as a certificatio
 | A03:2025 Software Supply Chain Failures | [Dependency Check and CodeQL workflows](.github/workflows/ci.yml) | Actual scan results must be checked |
 | A04:2025 Cryptographic Failures | [Hashed/rotated refresh sessions](src/test/java/com/wallet/secure/auth/service/SessionServiceTest.java) | Key management and infrastructure encryption unverified |
 | A05:2025 Injection | [DTO validation and JPA code](src/main/java) | No exhaustive injection assessment |
-| A06:2025 Insecure Design | [PostgreSQL concurrency tests](src/test/java/com/wallet/secure/transaction/integration/TransactionPostgresIntegrationTest.java) | TOTP and limits pending decisions |
-| A07:2025 Authentication Failures | [Lockout](src/test/java/com/wallet/secure/auth/service/LoginAttemptServiceTest.java), [JWT state](src/test/java/com/wallet/secure/auth/security/JwtAuthFilterTest.java) | No TOTP or inactivity timeout |
+| A06:2025 Insecure Design | [PostgreSQL concurrency tests](src/test/java/com/wallet/secure/transaction/integration/TransactionPostgresIntegrationTest.java) | TOTP and limits are out of scope, not implemented |
+| A07:2025 Authentication Failures | [Lockout](src/test/java/com/wallet/secure/auth/service/LoginAttemptServiceTest.java), [JWT state](src/test/java/com/wallet/secure/auth/security/JwtAuthFilterTest.java) | No TOTP or inactivity timeout; assess for real users |
 | A08:2025 Software or Data Integrity Failures | [Versioned SQL](database/), [CI](.github/workflows/ci.yml) | Release provenance unassessed |
 | A09:2025 Security Logging and Alerting Failures | [Audit tests](src/test/java/com/wallet/secure/audit/service/AuditServiceTest.java) | Complete coverage/external alerting unverified |
 | A10:2025 Mishandling of Exceptional Conditions | [Exception handler](src/main/java/com/wallet/secure/common/exception/GlobalExceptionHandler.java), [rollback tests](src/test/java/com/wallet/secure/transaction/integration/TransactionPostgresIntegrationTest.java) | Tested cases only |
@@ -256,9 +257,9 @@ These workflows provide automated evidence, but passing CI does not replace func
 
 ---
 
-## Roadmap and implementation status
+## Closed scope and implementation evidence
 
-The prioritized remediation and verification plan is maintained in:
+The completed educational-scope remediation and verification record is:
 
 [`docs/IMPLEMENTATION-PLAN.md`](docs/IMPLEMENTATION-PLAN.md)
 
@@ -266,7 +267,7 @@ The plan distinguishes:
 
 - Confirmed architectural requirements
 - Detected implementation defects
-- Decisions that require further review
+- Controls deliberately left outside this educational release
 - Automated and Postman acceptance evidence
 
 ---
