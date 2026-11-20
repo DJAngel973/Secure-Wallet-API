@@ -1,6 +1,6 @@
 # Architecture Decision Records (ADR)
 
-> ADRs capture design rationale, not proof of an active control. [`docs/IMPLEMENTATION-PLAN.md`](docs/IMPLEMENTATION-PLAN.md) is authoritative for implementation and verification status. In particular, ADR-004/005 are historical proposals pending [DESIGN-001/002](docs/IMPLEMENTATION-PLAN.md); TOTP and configurable limits are not enforced.
+> ADRs capture design rationale, not proof of an active control. The [closed educational-scope plan](docs/IMPLEMENTATION-PLAN.md) records implementation evidence. ADR-004/005 are historical ideas **not adopted for this release**; TOTP and configurable limits are not enforced and are not promised future work.
 
 ---
 
@@ -70,7 +70,7 @@ SQL scripts are versioned in Git and fully reproducible.
 
 ## ADR-004 — 2FA using TOTP (RFC 6238) instead of SMS
 
-**Date:** 2026-03 | **Status:** Historical proposal; pending design review ([DESIGN-001](docs/IMPLEMENTATION-PLAN.md))
+**Date:** 2026-03 | **Status:** Not adopted for this educational release ([DESIGN-001](docs/IMPLEMENTATION-PLAN.md#design-001--review-totp-based-two-factor-authentication))
 
 **Context:** Needed a second authentication factor for sensitive operations.
 
@@ -93,17 +93,17 @@ SQL scripts are versioned in Git and fully reproducible.
 
 This comparison is design rationale, not a claim that TOTP is enabled or that it is the only appropriate second factor.
 
-**If approved:** Define enrollment, protected secret storage, recovery, and bypass-resistant verification before requiring an authenticator app.
+**For a different, real-user project:** Reassess the threat model and define enrollment, protected secret storage, recovery, and bypass-resistant verification before requiring an authenticator app. See [SECURITY.md](SECURITY.md#considerations-for-real-world-projects).
 
 ---
 
 ## ADR-005 — 2FA threshold set at $100, not $5,000
 
-**Date:** 2026-03 | **Status:** Historical proposal; pending design review ([DESIGN-001/002](docs/IMPLEMENTATION-PLAN.md))
+**Date:** 2026-03 | **Status:** Not adopted for this educational release ([DESIGN-002](docs/IMPLEMENTATION-PLAN.md#design-002--review-configurable-financial-limits))
 
 **Context:** Determine the amount at which 2FA is required for transfers.
 
-**Proposed threshold:** $100, not enforced. `require-2fa-amount` in configuration does not activate TOTP; per-transaction and daily limit semantics are also unapproved.
+**Historical proposal:** $100, never enforced. `require-2fa-amount` in configuration does not activate TOTP, and the per-transaction/daily values do not enforce limits. This threshold is not a recommendation to copy into another currency or project.
 
 **Rationale:**
 A lower threshold was intended to protect smaller transactions, but its currency treatment, risk tradeoff, concurrency behavior, and user experience have not been validated. No protection percentage is claimed.

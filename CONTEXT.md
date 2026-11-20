@@ -14,6 +14,7 @@ REST API for a digital wallet built with an **academic-professional** focus, pri
 - **Full traceability** of financial operations
 
 The goal is not only to make it work — but to make it **secure, auditable, and maintainable**.
+The agreed implementation scope is closed as a local teaching example; it is not a production system and no additional features are planned. See the [closure record](docs/IMPLEMENTATION-PLAN.md) and [real-world considerations](SECURITY.md#considerations-for-real-world-projects).
 
 ---
 
@@ -25,7 +26,7 @@ The goal is not only to make it work — but to make it **secure, auditable, and
 ```
 com.wallet.secure/
 ├── config/          # Global configuration (Security, JWT, Audit)
-├── auth/            # Domain: Authentication, JWT, Sessions (TOTP pending)
+├── auth/            # Domain: Authentication, JWT, Sessions (no TOTP flow)
 ├── user/            # Domain: Users and profile management
 ├── wallet/          # Domain: Wallets and balances
 ├── transaction/     # Domain: Transactions (business core)
@@ -43,10 +44,10 @@ Each domain contains its own layers.
 
 - **OWASP Top 10** as the main security decision framework
 - **JWT** for stateless authentication (jjwt 0.12.6)
-- **TOTP** for high-value operations is a pending design decision, not an active control ([DESIGN-001](docs/IMPLEMENTATION-PLAN.md))
+- **TOTP** is outside this educational release; consider MFA for real users or privileged accounts ([DESIGN-001](docs/IMPLEMENTATION-PLAN.md))
 - **BCrypt** for password hashing
 - **AuditService** records tested sensitive flows; complete coverage is not claimed ([TX-001](docs/IMPLEMENTATION-PLAN.md))
-- **Failed-login lockout** is active (5 failures, 30 minutes); general rate limiting is not established. Transaction-limit values in `application.yml` are not enforced policy ([DESIGN-002](docs/IMPLEMENTATION-PLAN.md))
+- **Failed-login lockout** is active (5 failures, 30 minutes); general rate limiting is not established. Transaction-limit values in `application.yml` do not enforce policy and are outside this release ([DESIGN-002](docs/IMPLEMENTATION-PLAN.md))
 - **Prepared statements** via Hibernate (SQL Injection prevention)
 - **HTTPS** would be required for a future public deployment; local Compose uses HTTP
 
@@ -93,7 +94,7 @@ Each domain contains its own layers.
 ## Branching Strategy
 
 ```
-main          ← Production. Protected. Only merged via approved PR
+main          ← Stable educational branch. Protected. Only merged via approved PR
 └── feature/  ← One branch per feature: feature/descriptive-name
 └── fix/      ← Bug fixes: fix/bug-name
 └── docs/     ← Documentation only: docs/name

@@ -7,8 +7,12 @@
 
 ## What This Project Is
 
-A production-grade REST API for a digital wallet.
-Academic/portfolio focus — security and traceability are first-class concerns.
+A local educational REST API for a simulated digital wallet.
+It demonstrates foundational Spring Security authentication and authorization,
+plus traceability and financial-invariant testing. It does not process real money,
+is not intended for public production deployment, and has no planned feature expansion.
+The [closed implementation plan](docs/IMPLEMENTATION-PLAN.md) records tested scope;
+[SECURITY.md](SECURITY.md#considerations-for-real-world-projects) explains controls to consider in real projects.
 
 **Core priorities (in order):**
 1. Security — OWASP Top 10 (2025) compliance throughout
@@ -94,7 +98,7 @@ Every security decision must reference OWASP:
 ```java
 // OWASP A07: brute force detection — 5 failures in 15 min → CRITICAL alert
 // OWASP A01: userId from JWT — user cannot access another user's data
-// OWASP A02: SHA-256 for token hashing — BCrypt unnecessary for random tokens
+// OWASP A04: SHA-256 for token hashing — BCrypt unnecessary for random tokens
 ```
 
 ---
@@ -202,11 +206,11 @@ private String extractIp(HttpServletRequest request) { ... }
 private String extractUserAgent(HttpServletRequest request) { ... }
 ```
 
-### Session validation on refresh
+### Session rotation on refresh
 ```java
-// AuthService.refresh() — dual validation pattern:
-if (!refreshToken.equals(user.getRefreshToken())) { throw ... }  // legacy
-sessionService.validateSession(refreshToken);                     // new
+// AuthService.refresh() validates the refresh JWT, then rotates its session.
+// SessionService stores only SHA-256 token hashes; no raw refresh JWT in User.
+sessionService.rotateSession(user, oldRefreshToken, newRefreshToken, ip, userAgent);
 ```
 
 ### Ownership check pattern
@@ -237,7 +241,7 @@ transactionRepository.findByIdAndUserId(id, userId)
 ## Branching Strategy
 
 ```
-main          ← Production. Protected. Merge via PR only.
+main          ← Stable educational branch. Protected. Merge via PR only.
 feature/*     ← New features: feature/descriptive-name
 fix/*         ← Bug fixes: fix/bug-name
 ```

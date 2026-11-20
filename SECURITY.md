@@ -12,7 +12,7 @@ This is a local simulated-wallet portfolio project, not a production-certified f
 | Passwords in DB | Database theft | BCrypt hashing (strength 12) |
 | Stolen Access Token | Session hijacking | Short expiration: 15 minutes |
 | Stolen Refresh Token | Long-term impersonation | SHA-256 session hashes, rotation, and revocation ([`SessionServiceTest`](src/test/java/com/wallet/secure/auth/service/SessionServiceTest.java)) |
-| Sensitive operations | Fraud / unauthorized access | Authorization and audit; TOTP is **not implemented** ([DESIGN-001](docs/IMPLEMENTATION-PLAN.md#design-001--review-totp-based-two-factor-authentication)) |
+| Sensitive operations | Fraud / unauthorized access | Authorization and audit; TOTP is **outside this educational release** ([DESIGN-001](docs/IMPLEMENTATION-PLAN.md#design-001--review-totp-based-two-factor-authentication)) |
 | Data in transit | MITM | Local Compose uses HTTP; HTTPS is a requirement for any future public deployment, not an active local control |
 | SQL Injection | DB manipulation | Prepared statements via Hibernate |
 | Sensitive data in logs | Accidental exposure | Audit paths avoid reusable tokens; complete log-safety review is not claimed ([`AuditServiceTest`](src/test/java/com/wallet/secure/audit/service/AuditServiceTest.java)) |
@@ -30,8 +30,8 @@ This is a local simulated-wallet portfolio project, not a production-certified f
 | A03:2025 Software Supply Chain Failures | [CI dependency scan and CodeQL](.github/workflows/ci.yml), [`pom.xml`](pom.xml) | Actual scan results and dependency currency remain environment-dependent |
 | A04:2025 Cryptographic Failures | BCrypt and hashed refresh sessions ([SEC-003/004](docs/IMPLEMENTATION-PLAN.md)) | No production key-management or disk-encryption proof |
 | A05:2025 Injection | DTO validation and JPA repository patterns ([`src/main/java`](src/main/java)) | No exhaustive injection assessment |
-| A06:2025 Insecure Design | PostgreSQL concurrency tests ([`TransactionPostgresIntegrationTest`](src/test/java/com/wallet/secure/transaction/integration/TransactionPostgresIntegrationTest.java)) | TOTP and configurable limits remain pending ([DESIGN-001/002](docs/IMPLEMENTATION-PLAN.md)) |
-| A07:2025 Authentication Failures | Refresh, lockout, and JWT account-state tests ([SEC-004/005/006](docs/IMPLEMENTATION-PLAN.md)) | No TOTP or inactivity-timeout enforcement |
+| A06:2025 Insecure Design | PostgreSQL concurrency tests ([`TransactionPostgresIntegrationTest`](src/test/java/com/wallet/secure/transaction/integration/TransactionPostgresIntegrationTest.java)) | TOTP and configurable limits are not part of this release ([future guidance](#considerations-for-real-world-projects)) |
+| A07:2025 Authentication Failures | Refresh, lockout, and JWT account-state tests ([SEC-004/005/006](docs/IMPLEMENTATION-PLAN.md)) | No TOTP or inactivity-timeout enforcement; assess for real users |
 | A08:2025 Software or Data Integrity Failures | [Versioned SQL](database/) and [CI tests](.github/workflows/ci.yml) | No complete release/provenance assessment |
 | A09:2025 Security Logging and Alerting Failures | [`AuditServiceTest`](src/test/java/com/wallet/secure/audit/service/AuditServiceTest.java) and [TX-001](docs/IMPLEMENTATION-PLAN.md) | External alerting and complete event coverage unverified |
 | A10:2025 Mishandling of Exceptional Conditions | [`GlobalExceptionHandler`](src/main/java/com/wallet/secure/common/exception/GlobalExceptionHandler.java), [rollback tests](src/test/java/com/wallet/secure/transaction/integration/TransactionPostgresIntegrationTest.java) | Tested cases only; no universal fail-closed guarantee |
@@ -75,8 +75,8 @@ POST /auth/logout
 |---|--|---|
 | **Access Token TTL** | **15 minutes** | Short window if stolen |
 | **Refresh Token TTL** | **7 days** | Security/UX balance |
-| **Max inactivity** | Not enforced | Pending design, not equivalent to token TTL |
-| **Reauthentication** | Not enforced for sensitive operations | TOTP policy pending ([DESIGN-001](docs/IMPLEMENTATION-PLAN.md)) |
+| **Max inactivity** | Not enforced | Token expiry is not an inactivity timer |
+| **Reauthentication** | Current password is required for profile edits ([`UserService`](src/main/java/com/wallet/secure/user/service/UserService.java)); no TOTP step-up for financial operations | Distinguish password confirmation from MFA |
 | **Concurrent sessions** | Allowed (tracked in DB) | Auditable per device |
 
 ### Why 15 minutes for the Access Token?
@@ -87,22 +87,19 @@ For a wallet, 15 minutes is the right balance between security and user experien
 
 ---
 
-## Two-Factor Authentication (2FA) — pending decision, not active
+## Considerations for real-world projects
 
-TOTP is a proposal in [ADR-004](DECISIONS.md#adr-004--2fa-using-totp-rfc-6238-instead-of-sms), not an implemented authentication factor. Enrollment, verification, recovery, secret protection, and the operations requiring it remain undecided ([DESIGN-001](docs/IMPLEMENTATION-PLAN.md)).
+**None of these is promised for this educational release.** If this repository is used as a learning starting point, first define the new application's users, assets, threat model, regulatory obligations, and deployment environment. Do not copy a configuration value or database column and assume that it enforces a policy.
 
-### Proposed scenarios (none currently requires 2FA)
+| Control not provided here | When to assess it | Why it matters / what a real design must include |
+|---|---|---|
+| MFA (for example, TOTP or phishing-resistant factors) | Real user accounts, privileged administrators, sensitive data, or high-risk actions | Reduces reliance on passwords alone. Enrollment, protected secret storage, recovery, reset, rate limiting, and replay prevention must all be designed and tested; a TOTP field is not MFA. [OWASP MFA guidance](https://cheatsheetseries.owasp.org/cheatsheets/Multifactor_Authentication_Cheat_Sheet.html). |
+| Transaction-specific authorization | Real high-value transfers or actions needing explicit user approval | Login MFA does not prove approval of a particular recipient and amount. Bind the authorization to the transaction details and enforce it server-side. [OWASP transaction authorization guidance](https://cheatsheetseries.owasp.org/cheatsheets/Transaction_Authorization_Cheat_Sheet.html). The historical `$100` proposal is not an active threshold. |
+| Per-transaction and daily financial limits | A system that can move real funds or must contain fraud/loss | Define amounts per currency, operations counted, reset window, and override ownership. Enforce atomically under concurrent requests; the `app.transaction` values here do **not** enforce limits. |
+| HTTPS/TLS and secret/key management | Any use outside an isolated local demo, especially when credentials or tokens cross a network | TLS protects traffic confidentiality and integrity; encryption keys need controlled storage and rotation. Local HTTP and environment variables alone are not a deployment design. [OWASP TLS guidance](https://cheatsheetseries.owasp.org/cheatsheets/Transport_Layer_Security_Cheat_Sheet.html). |
+| Email verification, broader abuse controls, monitoring, and inactivity policy | When email is a recovery/notification channel, the service is exposed to untrusted clients, or risk/compliance requires active session monitoring | Verify control of recovery addresses; add request-level throttling/alerting and a server-enforced inactivity rule where needed. Five-failure account lockout and JWT expiry are **not** substitutes for all of these controls. |
 
-| Proposed scenario | Current enforcement |
-|---|---|
-| Transfers / withdrawals > $100 | None — threshold is not active |
-| Password / email change | None via TOTP |
-| Administrative operations | Role authorization, not TOTP |
-| Login from new device | No TOTP flow |
-| Balance inquiry | No TOTP flow |
-
-### Why $100 instead of $5,000?
-The `$100` value is a historical proposal in [ADR-005](DECISIONS.md#adr-005--2fa-threshold-set-at-100-not-5000) and a configuration value, **not an enforced rule**. Configurable transaction and daily limits are likewise pending [DESIGN-002](docs/IMPLEMENTATION-PLAN.md).
+TOTP and configurable limits were considered in [DESIGN-001/002](docs/IMPLEMENTATION-PLAN.md#p3--future-project-considerations-outside-this-release) and deliberately left outside the final scope. [ADR-004/005](DECISIONS.md) preserve their historical rationale, not an obligation to implement them in this repository.
 
 ---
 
