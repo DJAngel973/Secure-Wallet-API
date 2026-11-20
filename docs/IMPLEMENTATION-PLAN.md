@@ -509,9 +509,9 @@ The versioned collection now provides repeatable critical-flow verification.
 **Priority:** P2  
 **Depends on:** All completed tasks that change documented behavior
 
-**Current problem**
+**Current problem — resolved for the reviewed documents**
 
-Some documentation currently describes target controls—such as token rotation, lockout, TOTP, and limits—as fully implemented.
+The reviewed documentation previously lagged completed token-rotation and lockout work, while describing TOTP, limits, inactivity timeout, and local HTTPS as active controls. The documents now distinguish tested controls from pending decisions and deployment requirements.
 
 **Expected behavior**
 
@@ -529,10 +529,16 @@ Some documentation currently describes target controls—such as token rotation,
 
 **Acceptance criteria**
 
-- [ ] Every security claim links to implementation or test evidence.
-- [ ] Planned controls are not described as active controls.
-- [ ] Conflicting documents identify the implementation plan as the current status source.
-- [ ] OWASP Top 10:2025 names and ordering match the official release.
+- [x] Material security claims in the reviewed documents link to implementation, tests, or plan verification evidence.
+- [x] Planned controls are not described as active controls.
+- [x] Conflicting documents identify the implementation plan as the current status source.
+- [x] OWASP Top 10:2025 names and ordering match the [official release](https://top10.owasp.org/2025/).
+
+**Verification note — 2026-11-19**
+
+- Reconciled `README.md`, `SECURITY.md`, `CONTEXT.md`, `DECISIONS.md`, and `database/README.md` with the completed SEC/AUTHZ/TX/TEST evidence. Historical ADR-004/005 are explicitly pending design review, not silently deleted.
+- Replaced all-green OWASP claims with evidence and residual-work mapping. Clarified that local HTTP, configured transaction limits, TOTP columns, and enum statuses do not imply active security controls.
+- Local Markdown file links resolve, `git diff --check` passed, and `./scripts/test.sh` passed: 142 tests, 0 failures, 0 errors, 0 skipped. This documentation review does not constitute a comprehensive security assessment.
 
 ---
 

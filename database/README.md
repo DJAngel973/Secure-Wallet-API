@@ -3,6 +3,8 @@
 PostgreSQL 16 schema for a secure digital wallet system.
 Schema scripts run automatically on first Docker startup via `docker-entrypoint-initdb.d`, in numbered order.
 No development seed data is executed automatically. Test fixtures must be provisioned separately.
+[`../docs/IMPLEMENTATION-PLAN.md`](../docs/IMPLEMENTATION-PLAN.md) is the current implementation/verification status source; this file describes schema capabilities, which are not automatically active API controls.
+The `two_factor_*` columns reserve schema space only; they do not provide enrollment, encrypted secret handling, or a TOTP verification flow ([DESIGN-001](../docs/IMPLEMENTATION-PLAN.md)).
 
 ---
 
@@ -17,6 +19,7 @@ No development seed data is executed automatically. Test fixtures must be provis
 | `05-triggers.sql` | 5th | Auto-update timestamps, balance validation, audit triggers |
 | `06-functions.sql` | 6th | ACID transaction processor, session cleanup |
 | — | — | No seed data; administrators are provisioned by the application bootstrap procedure |
+| `08-migrations.sql` | Existing databases | Incremental changes; apply through the controlled migration path, not as a fresh-init seed |
 
 ---
 
@@ -72,7 +75,7 @@ RESTRICT │        │ RESTRICT
 │ reference_code VARCHAR(100) UNIQUE                    │
 │ fee DECIMAL(19,4)                                     │
 │ currency currency_code                                │
-│ metadata JSONB  ← IP, device, geolocation             │
+│ metadata JSONB  ← contextual data when supplied       │
 │ created_at / completed_at                             │
 │                                                       │
 │ CHECK: DEPOSIT  → source NULL,  target NOT NULL       │
@@ -115,14 +118,14 @@ RESTRICT │        │ RESTRICT
 
 | Decision | Reason |
 |----------|--------|
-| `UUID` primary keys | Prevents enumeration attacks (no sequential IDs) |
+| `UUID` primary keys | Avoids predictable sequential IDs; authorization still depends on ownership checks ([AUTHZ-002](../docs/IMPLEMENTATION-PLAN.md)) |
 | `BCrypt` for passwords | Industry standard — never store plain text |
 | `DECIMAL(19,4)` for money | Avoids floating-point precision errors in financial calculations |
-| `FOR UPDATE` in triggers | Prevents race conditions on concurrent balance reads |
-| `ON DELETE RESTRICT` on transactions | Financial records are never deleted |
-| `JSONB metadata` on transactions | Stores IP, device, geolocation for fraud detection |
+| `FOR UPDATE` in balance-validation trigger and wallet repository | Locks are exercised for tested debit scenarios ([`TransactionPostgresIntegrationTest`](../src/test/java/com/wallet/secure/transaction/integration/TransactionPostgresIntegrationTest.java)) |
+| `ON DELETE RESTRICT` on transaction wallet references | Prevents deleting a referenced wallet; not a universal retention guarantee |
+| `JSONB metadata` on transactions | Can store contextual data; fraud detection is not implemented |
 | `INET` type for IP addresses | Native PostgreSQL type — allows range queries |
-| `token_hash` (SHA-256) in sessions | JWT tokens never stored in plain text |
+| `token_hash` (SHA-256) in `user_sessions` | Raw refresh JWTs are not persisted after [SEC-003](../docs/IMPLEMENTATION-PLAN.md); not a claim about every JWT/log surface |
 | Partial indexes | Improves query performance on active/relevant records only |
 | `GIN` index on JSONB | Enables fast search inside JSON audit log details |
 
@@ -135,7 +138,7 @@ RESTRICT │        │ RESTRICT
 |-------|-------------|
 | `USER` | Regular client |
 | `ADMIN` | Full system access |
-| `MANAGER` | Support / audit access |
+| `MANAGER` | Legacy/reserved enum value; no approved functional role or access policy ([known decision conflict](../docs/IMPLEMENTATION-PLAN.md#known-decision-conflicts)) |
 
 ### `transaction_type`
 | Value | Description |
@@ -150,8 +153,8 @@ RESTRICT │        │ RESTRICT
 | `PENDING` | Created, awaiting processing |
 | `PROCESSING` | Being executed (lock held) |
 | `COMPLETED` | Successfully finished |
-| `FAILED` | Error — automatically rolled back |
-| `REVERSED` | Manually reversed after completion |
+| `FAILED` | Schema status value; rejected debits tested in TX-001 roll back their transaction/history rows and retain failure audit evidence |
+| `REVERSED` | Schema status value; no verified reversal API is claimed |
 
 ### `wallet_status`
 | Value | Description |

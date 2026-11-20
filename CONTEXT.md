@@ -1,7 +1,6 @@
 # Secure Wallet API — Project Context
 
-> This file is the single source of truth for the project.
-> Read it before generating or modifying any code.
+> [`AGENTS.md`](AGENTS.md) governs agent work; [`docs/IMPLEMENTATION-PLAN.md`](docs/IMPLEMENTATION-PLAN.md) is the current implementation and verification status source. This file describes architecture and intent, not proof that every named control is active.
 
 ---
 
@@ -26,7 +25,7 @@ The goal is not only to make it work — but to make it **secure, auditable, and
 ```
 com.wallet.secure/
 ├── config/          # Global configuration (Security, JWT, Audit)
-├── auth/            # Domain: Authentication, JWT, 2FA, Sessions
+├── auth/            # Domain: Authentication, JWT, Sessions (TOTP pending)
 ├── user/            # Domain: Users and profile management
 ├── wallet/          # Domain: Wallets and balances
 ├── transaction/     # Domain: Transactions (business core)
@@ -44,12 +43,12 @@ Each domain contains its own layers.
 
 - **OWASP Top 10** as the main security decision framework
 - **JWT** for stateless authentication (jjwt 0.12.6)
-- **2FA/TOTP** for high-value operations (> $100)
+- **TOTP** for high-value operations is a pending design decision, not an active control ([DESIGN-001](docs/IMPLEMENTATION-PLAN.md))
 - **BCrypt** for password hashing
-- **Automatic auditing** of all sensitive operations
-- **Rate limiting** and transaction límits configured in `application.yml`
+- **AuditService** records tested sensitive flows; complete coverage is not claimed ([TX-001](docs/IMPLEMENTATION-PLAN.md))
+- **Failed-login lockout** is active (5 failures, 30 minutes); general rate limiting is not established. Transaction-limit values in `application.yml` are not enforced policy ([DESIGN-002](docs/IMPLEMENTATION-PLAN.md))
 - **Prepared statements** via Hibernate (SQL Injection prevention)
-- **HTTPS required** in production
+- **HTTPS** would be required for a future public deployment; local Compose uses HTTP
 
 ---
 
@@ -59,15 +58,15 @@ Each domain contains its own layers.
 - **ORM:** Hibernate/JPA with `ddl-auto: validate`
 - **Important:** The databases is managed using SQL scripts in `/database/`
   Hibernate does NOT create or modify tables — it only validates them.
-- **Transactions:** ACID guaranteed through PostgreSQL functions
-- **Auditing:** Automatic DB Triggers for critical changes
+- **Transactions:** Spring transactional boundaries and pessimistic locking are proven for the tested PostgreSQL debit scenarios ([`TransactionPostgresIntegrationTest`](src/test/java/com/wallet/secure/transaction/integration/TransactionPostgresIntegrationTest.java))
+- **Auditing:** `AuditService` writes security/business events; a database trigger records transaction status changes in `transaction_history` ([`05-triggers.sql`](database/05-triggers.sql))
 
 ### Main tables:
 - `users` → entity `User.java`
 - `wallets` → entity `Wallet.java`
 - `transactions` → entity `Transaction.java`
 - `transaction_history` → entity `TransactionHistory.java`
-- `sessions` → entity `Session.java`
+- `user_sessions` → entity `Session.java` (SHA-256 token hashes)
 - `audit_logs` → entity `AuditLog.java`
 
 ---
@@ -125,7 +124,7 @@ All responses use the standard wrapper  `ApiResponse<T>` from `common/response/`
 ### Code Documentation
 - Document the **WHY**, not the what
 - Security decisions MUST reference OWASP when applicable
-- Example: `// OWASP A03: Prepared statements prevent SQL Injection`
+- Example: `// OWASP A05: parameterized queries reduce SQL injection risk`
 
 ---
 

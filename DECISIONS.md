@@ -1,5 +1,7 @@
 # Architecture Decision Records (ADR)
 
+> ADRs capture design rationale, not proof of an active control. [`docs/IMPLEMENTATION-PLAN.md`](docs/IMPLEMENTATION-PLAN.md) is authoritative for implementation and verification status. In particular, ADR-004/005 are historical proposals pending [DESIGN-001/002](docs/IMPLEMENTATION-PLAN.md); TOTP and configurable limits are not enforced.
+
 ---
 
 ## ADR-001 — Architecture: Layered + Hybrid DDD
@@ -59,16 +61,16 @@ SQL scripts are versioned in Git and fully reproducible.
 - 24h tokens are unacceptable in finance — a stolen token grants nearly a full day of access
 - 15min without refresh harms UX
 - Dual‑token provides a short exposure window (15min) with smooth UX
-- Stateless design scales horizontally without shared sessions
-- Refresh Tokens stored in DB allow explicit revocation (real logout)
+- Access JWT validation is stateless, but refresh rotation/revocation relies on shared database-backed sessions
+- SHA-256 refresh-token hashes in `user_sessions` allow explicit revocation and atomic rotation ([SEC-003/004](docs/IMPLEMENTATION-PLAN.md), [`SessionServiceTest`](src/test/java/com/wallet/secure/auth/service/SessionServiceTest.java))
 
-**Consequence:** Requires `/auth/refresh` endpoint and  `sessions` table in DB..
+**Consequence:** Uses `/auth/refresh` and the `user_sessions` table; access JWTs remain valid until expiry unless account-state checks reject them.
 
 ---
 
 ## ADR-004 — 2FA using TOTP (RFC 6238) instead of SMS
 
-**Date:** 2026-03 | **Status:** Accepted
+**Date:** 2026-03 | **Status:** Historical proposal; pending design review ([DESIGN-001](docs/IMPLEMENTATION-PLAN.md))
 
 **Context:** Needed a second authentication factor for sensitive operations.
 
@@ -78,7 +80,7 @@ SQL scripts are versioned in Git and fully reproducible.
 - TOTP (Google Authenticator / Authy)
 - WebAuthn / FIDO2
 
-**Decision:** TOTP (RFC 6238)
+**Proposed direction:** TOTP (RFC 6238). No enrollment, verification, recovery, or protected-operation policy is implemented.
 
 **Rationale:**
 
@@ -89,25 +91,22 @@ SQL scripts are versioned in Git and fully reproducible.
 | WebAuthn | Requires hardware keys — too complex for a portfolio project |
 | **TOTP** | Offline, standard, no third‑party dependency, widely supported |
 
-NIST SP 800‑63B discourages SMS for high‑value authentication since 2016.
-TOTP is the standard for serious financial applications.
+This comparison is design rationale, not a claim that TOTP is enabled or that it is the only appropriate second factor.
 
-**Consequence:** Users must configure an authenticator app (Google Authenticator, Authy, etc.).
+**If approved:** Define enrollment, protected secret storage, recovery, and bypass-resistant verification before requiring an authenticator app.
 
 ---
 
 ## ADR-005 — 2FA threshold set at $100, not $5,000
 
-**Date:** 2026-03 | **Status:** Accepted
+**Date:** 2026-03 | **Status:** Historical proposal; pending design review ([DESIGN-001/002](docs/IMPLEMENTATION-PLAN.md))
 
 **Context:** Determine the amount at which 2FA is required for transfers.
 
-**Decision:** $100
+**Proposed threshold:** $100, not enforced. `require-2fa-amount` in configuration does not activate TOTP; per-transaction and daily limit semantics are also unapproved.
 
 **Rationale:**
-A $5,000 threshold implies that $499 transactions are “not important,” which is incorrect in financial security.
-Most real‑world user damage occurs in small, frequent transactions, not large one‑off transfers.
-A $100 threshold protects ~95% of everyday operations without harming UX for low‑risk payments (< $100).
+A lower threshold was intended to protect smaller transactions, but its currency treatment, risk tradeoff, concurrency behavior, and user experience have not been validated. No protection percentage is claimed.
 
 ---
 
@@ -121,7 +120,7 @@ A $100 threshold protects ~95% of everyday operations without harming UX for low
 
 **Rationale:**
 - High‑performance async logging — critical with heavy audit logging
-- Version 2.25.3 fully patched (CVE‑2021‑44228 Log4Shell)
+- Dependency version is maintained in `pom.xml`; vulnerability status depends on current scan evidence, not this ADR.
 - More granular configuration to separate security logs from application logs
 
 ---
@@ -144,8 +143,7 @@ A $100 threshold protects ~95% of everyday operations without harming UX for low
 - Encrypting balances at application level breaks arithmetic operations in DB
 - `pgcrypto` adds significant operational complexity for queries
 - For a portfolio project, explicitly delegating encryption is more honest and professional than implementing it poorly
-- **In real production:** encrypted volumes (AWS EBS encrypted, etc.)
-    + `pgcrypto` for highly sensitive fields (account number, IBAN)
+- A future production deployment would need an explicit infrastructure/key-management review; the local Docker setup does not prove encrypted volumes.
 
 **Note:** This decision would be revisited before a real production deployment.
 Documented explicitly to show it was evaluated, not ignored.

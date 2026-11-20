@@ -40,16 +40,16 @@ Status labels used below:
 
 - **Implemented:** public registration creates `USER` accounts; profile read/update and soft deactivation are available.
 - **Implemented:** the target business roles are `USER` and `ADMIN`; privileged access uses Spring Security method authorization.
-- **Planned:** the first `ADMIN` will be created through a controlled one-time bootstrap without public default credentials.
-- **Planned:** administrators will manage regular users but will not create other administrators through the public API.
-- **Partial:** account-state and failed-login controls exist in the model, but the complete lockout flow still requires correction and functional verification.
+- **Verified:** controlled first-`ADMIN` bootstrap, with no SQL-seeded administrator ([SEC-001/002](docs/IMPLEMENTATION-PLAN.md#sec-001--separate-development-seed-data-from-automatic-initialization), [`AdminBootstrapServiceTest`](src/test/java/com/wallet/secure/user/service/AdminBootstrapServiceTest.java)).
+- **Verified:** `ADMIN` may deactivate `USER` accounts, but no API creates or promotes administrators ([AUTHZ-001](docs/IMPLEMENTATION-PLAN.md#authz-001--implement-controlled-management-of-regular-users), [`UserServiceTest`](src/test/java/com/wallet/secure/user/service/UserServiceTest.java)).
+- **Verified:** five failed logins cause a 30-minute lock; disabled/locked accounts cannot authenticate with existing access tokens ([SEC-005/006](docs/IMPLEMENTATION-PLAN.md#sec-005--correct-login-attempt-lockout), [`LoginAttemptServiceTest`](src/test/java/com/wallet/secure/auth/service/LoginAttemptServiceTest.java), [`JwtAuthFilterTest`](src/test/java/com/wallet/secure/auth/security/JwtAuthFilterTest.java)).
 
 ### Multi-Currency Savings Wallets
 
 - **Implemented:** one wallet per user and currency.
 - **Implemented:** USD, EUR, COP, MXN, and ARS currencies.
 - **Implemented:** `ACTIVE`, `SUSPENDED`, and `CLOSED` wallet states.
-- **Partial:** ownership and administrative wallet operations are implemented but still require complete authorization tests.
+- **Verified:** ownership and administrative wallet route matrix ([AUTHZ-002](docs/IMPLEMENTATION-PLAN.md#authz-002--review-wallet-permissions-and-ownership), [`SecurityConfigTest`](src/test/java/com/wallet/secure/config/SecurityConfigTest.java)).
 
 ### Financial Transactions
 
@@ -61,7 +61,7 @@ Status labels used below:
 | History | Read transaction state changes | Implemented |
 
 - **Implemented:** `BigDecimal`/`DECIMAL(19,4)` amounts, transactional service boundaries, reference codes, and pessimistic balance locking.
-- **Partial:** concurrency, rollback, ownership, and complete audit behavior require PostgreSQL-backed and Postman verification.
+- **Verified for tested cases:** concurrent debits, rollback, ownership, history, and audit evidence in PostgreSQL; the local Postman collection was also reported passing ([TX-001](docs/IMPLEMENTATION-PLAN.md#tx-001--verify-transactions-concurrency-rollback-and-audit-behavior), [`TransactionPostgresIntegrationTest`](src/test/java/com/wallet/secure/transaction/integration/TransactionPostgresIntegrationTest.java), [Postman guide](POSTMAN_PORTFOLIO_PLAN.md)). Rejected operations roll back their transaction/history rows and retain failure audit evidence.
 - **Pending decision:** configurable transaction limits and thresholds must be reviewed before full implementation.
 
 ### Authentication & Security
@@ -70,15 +70,15 @@ Status labels used below:
 - **Implemented:** JWT signature, expiration, issuer, and token-type validation.
 - **Implemented:** BCrypt password hashing and Spring Security authentication.
 - **Implemented:** refresh-session tracking and revocation support.
-- **Partial:** refresh-token rotation and removal of legacy raw-token storage remain required.
-- **Partial:** disabled or locked accounts must be rejected consistently during both login and JWT-authenticated requests.
+- **Verified:** refresh-token rotation and revocation use SHA-256 hashes in `user_sessions`; legacy raw-token storage was removed ([SEC-003/004](docs/IMPLEMENTATION-PLAN.md#sec-003--remove-original-refresh-token-storage-from-the-user-record), [`SessionServiceTest`](src/test/java/com/wallet/secure/auth/service/SessionServiceTest.java)).
+- **Verified:** disabled or locked accounts are rejected during login and JWT-authenticated requests ([SEC-005/006](docs/IMPLEMENTATION-PLAN.md#sec-005--correct-login-attempt-lockout)).
 - **Pending decision:** TOTP-based 2FA requires a separate design review before full implementation.
 
 ### Audit Trail
 
 - **Implemented:** authentication, wallet, transaction, and account events have audit-writing support.
 - **Implemented:** audit entries can include user, IP address, User-Agent, timestamp, severity, and contextual JSON details.
-- **Partial:** complete event coverage and failure resilience still require end-to-end verification.
+- **Verified for tested flows:** authentication, wallet, account deactivation, and financial success/failure audit evidence; this is not a claim of exhaustive event coverage ([`AuditServiceTest`](src/test/java/com/wallet/secure/audit/service/AuditServiceTest.java), [TX-001](docs/IMPLEMENTATION-PLAN.md#tx-001--verify-transactions-concurrency-rollback-and-audit-behavior)).
 
 ---
 
@@ -115,7 +115,7 @@ Each domain owns its controllers, DTOs, entities, repositories, and services. Co
 | Validation | Spring Bean Validation |
 | API Docs | SpringDoc OpenAPI 2.8.8 |
 | Boilerplate | Lombok 1.18.36 |
-| Tests | JUnit 5 + Mockito + AssertJ + H2 security integration test |
+| Tests | JUnit 5 + Mockito + AssertJ + focused security and PostgreSQL/Testcontainers integration tests |
 | DevSecOps | GitHub Actions + CodeQL + OWASP Dependency Check |
 | Local runtime | Docker Compose |
 
@@ -156,7 +156,7 @@ docker compose logs -f wallet-api
 
 The API is available at `http://localhost:8080` unless `SERVER_PORT` is changed in `.env`.
 
-> PostgreSQL executes files mounted under `docker-entrypoint-initdb.d` only when initializing an empty data directory. The current development seed is tracked as a remediation item because public default administrative credentials must not be part of the standard initialization path.
+> PostgreSQL executes files mounted under `docker-entrypoint-initdb.d` only when initializing an empty data directory. No SQL seed creates default users. The first administrator requires the controlled, opt-in bootstrap described in [SEC-002](docs/IMPLEMENTATION-PLAN.md#sec-002--add-controlled-one-time-bootstrap-for-the-first-administrator).
 
 ### Stop the environment
 
@@ -169,11 +169,10 @@ This does not delete the configured PostgreSQL data directory.
 ### Run automated tests
 
 ```bash
-./mvnw test
-./mvnw test -Dtest=TransactionServiceTest
+./scripts/test.sh
 ```
 
-The current suite primarily contains Mockito unit tests plus a small Spring Security integration test using H2. It does not yet prove complete PostgreSQL or HTTP end-to-end behavior.
+The suite combines unit tests, focused Spring Security tests, and PostgreSQL/Testcontainers concurrency tests. See [TEST-001](docs/IMPLEMENTATION-PLAN.md#test-001--expand-automated-security-and-integration-tests) for scope and limits; local Postman evidence is user-reported rather than independently reproduced by the agent.
 
 ### Explore with Postman
 
@@ -216,8 +215,8 @@ PostgreSQL 16 is managed through numbered SQL scripts. The published application
 | 04 | `index.sql` | Partial, composite, and GIN indexes | Implemented |
 | 05 | `triggers.sql` | Timestamp, balance, and history triggers | Implemented |
 | 06 | `functions.sql` | Database transaction-processing functions | Implemented |
-| 07 | `seed.sql` | Current development-only test data | Must be separated from automatic initialization |
-| 08 | `migrations.sql` | Incremental schema changes | Implemented |
+| 07 | — | No SQL seed or default administrator | Verified |
+| 08 | `08-migrations.sql` | Incremental changes for existing databases; not a fresh-init seed | Implemented |
 
 The database schema is part of the security boundary: unique constraints, ownership relationships, non-negative balances, transaction consistency, and append-oriented audit/history records complement application-layer validation.
 
@@ -229,18 +228,18 @@ OWASP Top 10 is used as an awareness and review framework, not as a certificatio
 
 | Category | Current project alignment | Status |
 |----------|---------------------------|--------|
-| A01 — Broken Access Control | JWT-derived identity, role checks, ownership-aware repository queries, and non-enumerating `404` patterns | Partial — broader authorization tests required |
-| A02 — Security Misconfiguration | Environment-based secrets, controlled error responses, container hardening, and restricted published Actuator exposure | Partial — development settings and seed initialization require review |
-| A03 — Software Supply Chain Failures | Pinned key dependency versions, OWASP Dependency Check, and CodeQL workflows | Implemented; scan results remain environment-dependent |
-| A04 — Cryptographic Failures | BCrypt passwords, signed JWTs, short access-token lifetime, and hashed session tokens | Partial — legacy raw refresh-token storage must be removed |
-| A05 — Injection | DTO validation plus parameterized persistence through Spring Data JPA/Hibernate | Implemented; complete endpoint verification pending |
-| A06 — Insecure Design | Transaction boundaries, pessimistic locking, database constraints, audit design, and documented threat decisions | Partial — configurable limits and TOTP remain pending decisions |
-| A07 — Authentication Failures | Dual-token authentication, account-state modeling, session revocation, and authentication auditing | Partial — rotation, lockout, and account-state enforcement require correction and tests |
-| A08 — Software or Data Integrity Failures | Versioned SQL, CI analysis, controlled schema validation, and transaction-history records | Partial — release and integration verification can be expanded |
-| A09 — Security Logging & Alerting Failures | Database audit events, severity levels, IP/User-Agent context, and fallback logging design | Partial — coverage and alert behavior require functional verification |
-| A10 — Mishandling of Exceptional Conditions | Centralized exception handling and transactional rollback boundaries | Partial — HTTP failure paths require end-to-end verification |
+| A01:2025 Broken Access Control | [Role and ownership tests](src/test/java/com/wallet/secure/config/SecurityConfigTest.java) | Tested routes only |
+| A02:2025 Security Misconfiguration | [Security configuration](src/main/java/com/wallet/secure/config/SecurityConfig.java), [seed removal](docs/IMPLEMENTATION-PLAN.md#sec-001--separate-development-seed-data-from-automatic-initialization) | Local deployment is not public-ready |
+| A03:2025 Software Supply Chain Failures | [Dependency Check and CodeQL workflows](.github/workflows/ci.yml) | Actual scan results must be checked |
+| A04:2025 Cryptographic Failures | [Hashed/rotated refresh sessions](src/test/java/com/wallet/secure/auth/service/SessionServiceTest.java) | Key management and infrastructure encryption unverified |
+| A05:2025 Injection | [DTO validation and JPA code](src/main/java) | No exhaustive injection assessment |
+| A06:2025 Insecure Design | [PostgreSQL concurrency tests](src/test/java/com/wallet/secure/transaction/integration/TransactionPostgresIntegrationTest.java) | TOTP and limits pending decisions |
+| A07:2025 Authentication Failures | [Lockout](src/test/java/com/wallet/secure/auth/service/LoginAttemptServiceTest.java), [JWT state](src/test/java/com/wallet/secure/auth/security/JwtAuthFilterTest.java) | No TOTP or inactivity timeout |
+| A08:2025 Software or Data Integrity Failures | [Versioned SQL](database/), [CI](.github/workflows/ci.yml) | Release provenance unassessed |
+| A09:2025 Security Logging and Alerting Failures | [Audit tests](src/test/java/com/wallet/secure/audit/service/AuditServiceTest.java) | Complete coverage/external alerting unverified |
+| A10:2025 Mishandling of Exceptional Conditions | [Exception handler](src/main/java/com/wallet/secure/common/exception/GlobalExceptionHandler.java), [rollback tests](src/test/java/com/wallet/secure/transaction/integration/TransactionPostgresIntegrationTest.java) | Tested cases only |
 
-See [`SECURITY.md`](SECURITY.md) for the threat model. Where that document describes a target control not yet verified, the implementation plan is the authoritative status tracker.
+Category names/order follow the [official OWASP release](https://top10.owasp.org/2025/). See [`SECURITY.md`](SECURITY.md) for the threat model; the implementation plan is the authoritative status tracker.
 
 ---
 
