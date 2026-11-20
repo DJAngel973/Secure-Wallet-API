@@ -1,44 +1,40 @@
 # Security Documentation
 
-This document describes the security model of the Secure Wallet API,
-the controls implemented, and the decisions made following OWASP Top 10 (2025) — the current official version
-published on November 6, 2025 at the Global AppSec Conference.
+This is a local simulated-wallet portfolio project, not a production-certified financial service. [The implementation plan](docs/IMPLEMENTATION-PLAN.md) is the authoritative status source; [ADRs](DECISIONS.md) record design intent, not necessarily active controls. OWASP Top 10:2025 is a review framework, not a certification; names and order follow the [official release](https://top10.owasp.org/2025/).
 
 ---
 
 ## Threat Model — ¿What We Protect?
 
-| Asset | Threat | Implemented Control |
+| Asset | Threat | Current control or status |
 |---|---|---|
-| User credentials | Brute force | Rate limiting + lockout (5 attempts, 30 min) |
+| User credentials | Brute force | Account lockout after 5 failed logins for 30 minutes ([`LoginAttemptServiceTest`](src/test/java/com/wallet/secure/auth/service/LoginAttemptServiceTest.java)); no general API/IP rate limiter |
 | Passwords in DB | Database theft | BCrypt hashing (strength 12) |
 | Stolen Access Token | Session hijacking | Short expiration: 15 minutes |
-| Stolen Refresh Token | Long-term impersonation | Rotation + revocation stored in DB |
-| Sensitive operations | Fraud / unauthorized access | Mandatory 2FA |
-| Data in transit | MITM | HTTPS required in production |
+| Stolen Refresh Token | Long-term impersonation | SHA-256 session hashes, rotation, and revocation ([`SessionServiceTest`](src/test/java/com/wallet/secure/auth/service/SessionServiceTest.java)) |
+| Sensitive operations | Fraud / unauthorized access | Authorization and audit; TOTP is **not implemented** ([DESIGN-001](docs/IMPLEMENTATION-PLAN.md#design-001--review-totp-based-two-factor-authentication)) |
+| Data in transit | MITM | Local Compose uses HTTP; HTTPS is a requirement for any future public deployment, not an active local control |
 | SQL Injection | DB manipulation | Prepared statements via Hibernate |
-| Sensitive data in logs | Accidental exposure | Log4j2 — no passwords/tokens logged |
+| Sensitive data in logs | Accidental exposure | Audit paths avoid reusable tokens; complete log-safety review is not claimed ([`AuditServiceTest`](src/test/java/com/wallet/secure/audit/service/AuditServiceTest.java)) |
 
 ---
 
 ## OWASP Top 10 (2025) — Coverage
 
-> OWASP Top 10 2025 was published on November 6, 2025
-> at the Global AppSec Conference in Washington D.C.
-> It is the current and official version.
+> This is a mapping of tested evidence and residual work, not a claim that any category has been eliminated. See the [official OWASP Top 10:2025](https://top10.owasp.org/2025/).
 
-| # | OWASP 2025 Risk | Status | How it is mitigated in this project                                                                 |
-|---|---|---|-----------------------------------------------------------------------------------------------------|
-| A01 | Broken Access Control *(includes SSRF)* | ✅ | Spring Security + roles (ADMIN, USER). API performs no outbound calls (SSRF N/A)                    |
-| A02 | Cryptographic Failures | ✅ | BCrypt strength 12 + JWT HS256 + HTTPS in production                                                |
-| A03 | **Software Supply Chain Failures** 🆕 | ✅ | OWASP Dependency Check en CI (`failOnCVSS ≥ 7`) + pinned dependencies in `pom.xml`                  |
-| A04 | Injection | ✅ | Hibernate prepared statements + Bean Validation on all endpoints                                    |
-| A05 | Security Misconfiguration | ✅ | Hidden error messages, no stack traces to client, secure headers                                    |
-| A06 | Insecure Design | ✅ | Documented threat modeling, transaction limits, threshold-based 2FA                                 |
-| A07 | Identification & Authentication Failures | ✅ | Dual-token JWT (15min/7d) + TOTP 2FA + lockout + 30min inactivity                                   |
-| A08 | Software and Data Integrity Failures | ✅ | CodeQL in GitHub Actions, SQL scripts versioned in Git                                              |
-| A09 | Security Logging & Monitoring Failures | ✅ | Full auditing in `audit_logs`, Log4j2, all security events logged                                   |
-| A10 | **Mishandling of Exceptional Conditions** 🆕 | ✅ | Centralized `GlobalExceptionHandler` never “fail open”, no sensitive data in errors |
+| Category | Project evidence | Residual work / boundary |
+|---|---|---|
+| A01:2025 Broken Access Control | Role and ownership tests ([AUTHZ-001/002](docs/IMPLEMENTATION-PLAN.md), [`SecurityConfigTest`](src/test/java/com/wallet/secure/config/SecurityConfigTest.java)) | Tested route matrix, not an exhaustive assessment |
+| A02:2025 Security Misconfiguration | [`SecurityConfig`](src/main/java/com/wallet/secure/config/SecurityConfig.java), schema validation and no SQL seed ([SEC-001](docs/IMPLEMENTATION-PLAN.md)) | Local HTTP and deployment settings require review before public use |
+| A03:2025 Software Supply Chain Failures | [CI dependency scan and CodeQL](.github/workflows/ci.yml), [`pom.xml`](pom.xml) | Actual scan results and dependency currency remain environment-dependent |
+| A04:2025 Cryptographic Failures | BCrypt and hashed refresh sessions ([SEC-003/004](docs/IMPLEMENTATION-PLAN.md)) | No production key-management or disk-encryption proof |
+| A05:2025 Injection | DTO validation and JPA repository patterns ([`src/main/java`](src/main/java)) | No exhaustive injection assessment |
+| A06:2025 Insecure Design | PostgreSQL concurrency tests ([`TransactionPostgresIntegrationTest`](src/test/java/com/wallet/secure/transaction/integration/TransactionPostgresIntegrationTest.java)) | TOTP and configurable limits remain pending ([DESIGN-001/002](docs/IMPLEMENTATION-PLAN.md)) |
+| A07:2025 Authentication Failures | Refresh, lockout, and JWT account-state tests ([SEC-004/005/006](docs/IMPLEMENTATION-PLAN.md)) | No TOTP or inactivity-timeout enforcement |
+| A08:2025 Software or Data Integrity Failures | [Versioned SQL](database/) and [CI tests](.github/workflows/ci.yml) | No complete release/provenance assessment |
+| A09:2025 Security Logging and Alerting Failures | [`AuditServiceTest`](src/test/java/com/wallet/secure/audit/service/AuditServiceTest.java) and [TX-001](docs/IMPLEMENTATION-PLAN.md) | External alerting and complete event coverage unverified |
+| A10:2025 Mishandling of Exceptional Conditions | [`GlobalExceptionHandler`](src/main/java/com/wallet/secure/common/exception/GlobalExceptionHandler.java), [rollback tests](src/test/java/com/wallet/secure/transaction/integration/TransactionPostgresIntegrationTest.java) | Tested cases only; no universal fail-closed guarantee |
 
 ---
 
@@ -49,9 +45,8 @@ published on November 6, 2025 at the Global AppSec Conference.
 POST /auth/login
   → Validate credentials (username + BCrypt password)
   → Verify account is not locked
-  → If 2FA required → POST /auth/2fa/verify
   → Generate Access Token (15 min) + Refresh Token (7 days)
-  → Register session in sessions table
+  → Store only a SHA-256 refresh-token hash in user_sessions
   → Audit log login event
   → Return tokens to client
 ```
@@ -59,7 +54,7 @@ POST /auth/login
 ### Token Refresh
 ```
 POST /auth/refresh
-  → Validate Refresh Token (signature + expiration + exists in DB)
+  → Validate Refresh Token (signature + expiration + active session hash)
   → Rotate Refresh Token (invalidate old one, generate new one)
   → Return new Access Token (15 min) + new Refresh Token
 ```
@@ -67,7 +62,7 @@ POST /auth/refresh
 ### Session Invalidation
 ```
 POST /auth/logout
-  → Invalidate Refresh Token in DB (sessions table)
+  → Revoke Refresh Token session in user_sessions
   → Audit log logout event
   → Access Token naturally expires within 15 minutes
 ```
@@ -80,8 +75,8 @@ POST /auth/logout
 |---|--|---|
 | **Access Token TTL** | **15 minutes** | Short window if stolen |
 | **Refresh Token TTL** | **7 days** | Security/UX balance |
-| **Max inactivity** | **30 minutes** | Banking standard — invalidates session |
-| **Reauthentication** | Required for sensitive operations | See 2FA section |
+| **Max inactivity** | Not enforced | Pending design, not equivalent to token TTL |
+| **Reauthentication** | Not enforced for sensitive operations | TOTP policy pending ([DESIGN-001](docs/IMPLEMENTATION-PLAN.md)) |
 | **Concurrent sessions** | Allowed (tracked in DB) | Auditable per device |
 
 ### Why 15 minutes for the Access Token?
@@ -92,35 +87,29 @@ For a wallet, 15 minutes is the right balance between security and user experien
 
 ---
 
-## Two-Factor Authentication (2FA)
+## Two-Factor Authentication (2FA) — pending decision, not active
 
-### Technology: TOTP (RFC 6238)
-Compatible with Google Authenticator, Authy, and similar apps.
+TOTP is a proposal in [ADR-004](DECISIONS.md#adr-004--2fa-using-totp-rfc-6238-instead-of-sms), not an implemented authentication factor. Enrollment, verification, recovery, secret protection, and the operations requiring it remain undecided ([DESIGN-001](docs/IMPLEMENTATION-PLAN.md)).
 
-### When is 2FA required?
+### Proposed scenarios (none currently requires 2FA)
 
-| Scenario | 2FA Required |
+| Proposed scenario | Current enforcement |
 |---|---|
-| Transfers > $100 | ✅ Required |
-| Withdrawals > $100 | ✅ Required |
-| Password change | ✅ Required |
-| Email change | ✅ Required |
-| Administrative operations | ✅ Required |
-| Login from new device | ⚠️ Recommended |
-| Balance inquiry | ❌ Not required |
+| Transfers / withdrawals > $100 | None — threshold is not active |
+| Password / email change | None via TOTP |
+| Administrative operations | Role authorization, not TOTP |
+| Login from new device | No TOTP flow |
+| Balance inquiry | No TOTP flow |
 
 ### Why $100 instead of $5,000?
-For an educational/portfolio wallet, $100 reflects better security practices.
-A $5,000 threshold implies smaller amounts are not important — but in financial security,
-thresholds must be low to protect everyday transactions.
+The `$100` value is a historical proposal in [ADR-005](DECISIONS.md#adr-005--2fa-threshold-set-at-100-not-5000) and a configuration value, **not an enforced rule**. Configurable transaction and daily limits are likewise pending [DESIGN-002](docs/IMPLEMENTATION-PLAN.md).
 
 ---
 
 ## Encryption and Data Protection
 
 ### In transit
-- HTTPS/TLS required in production
-- HTTP allowed only in local development
+- Local Docker Compose uses HTTP. TLS is required before any future public deployment; this project is not intended for one.
 
 ### At rest — passwords
 - BCrypt with strength 12
@@ -128,8 +117,7 @@ thresholds must be low to protect everyday transactions.
 
 ### At rest — financial data
 - Balances and amounts stored as `DECIMAL(19,4)` — no rounding
-- Sensitive fields (e.g., account numbers) considered for column-level encryption using
-  PostgreSQL (`pgcrypto`) — see ADR-007
+- Monetary precision is not encryption. Infrastructure encryption is a design delegation, not a verified local control ([ADR-007](DECISIONS.md#adr-007--encryption-at-rest-delegated-to-infrastructure)).
 - Audit logs never store sensitive data (passwords, full tokens)
 
 ### JWT Secret
@@ -139,14 +127,14 @@ thresholds must be low to protect everyday transactions.
 
 ---
 
-## 🚨 Rules That Must NEVER Be Violated
+## 🚨 Engineering rules (requirements, not proof of complete coverage)
 
 1. `ddl-auto` is never  `create` or `update` in any environment
 2. Stack traces never reach the client
 3. Passwords are never logged or returned in any response
 4. JWT secret is never hardcoded — always environment variable
 5. Financial operations always run inside `@Transactional`
-6. Every security event generates an entry in `audit_logs`
+6. Sensitive operations must generate audit evidence; coverage must be verified for each new flow
 7. Input validation is required on **all** endpoints (`@Valid`)
 
 ---
